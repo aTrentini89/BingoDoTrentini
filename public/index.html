@@ -315,8 +315,10 @@
         </div>
     </div>
 
+    <script src="/socket.io/socket.io.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            const socket = io();
             const form = document.getElementById('bingoForm');
             const cardsContainer = document.getElementById('cardsContainer');
             const errorMessage = document.getElementById('errorMessage');
@@ -343,49 +345,20 @@
             }
 
             function saveGameState() {
-                const gameState = {
+                socket.emit('updateGame', { gameCode, gameState: {
                     players,
                     generatedCards,
                     gameCount,
                     winners,
                     bingoName: document.getElementById('bingoName').value,
                     gameStarted
-                };
-                localStorage.setItem(`bingoGameState_${gameCode}`, JSON.stringify(gameState));
-                const shareUrl = `${window.location.origin}${window.location.pathname}?game=${gameCode}`;
-                shareLinkDiv.innerHTML = `<p>Compartilhe este link: <a href="${shareUrl}" target="_blank">${shareUrl}</a></p>`;
-                history.pushState(null, '', `?game=${gameCode}`);
+                }});
             }
 
             function loadGameState() {
-                const urlParams = new URLSearchParams(window.location.search);
-                const loadedGameCode = urlParams.get('game');
-                if (loadedGameCode) {
-                    gameCode = loadedGameCode;
-                    const savedState = localStorage.getItem(`bingoGameState_${gameCode}`);
-                    if (savedState) {
-                        const gameState = JSON.parse(savedState);
-                        players = gameState.players;
-                        generatedCards = gameState.generatedCards;
-                        gameCount = gameState.gameCount;
-                        winners = gameState.winners;
-                        gameStarted = gameState.gameStarted;
-                        document.getElementById('bingoName').value = gameState.bingoName;
-                        document.getElementById('bingoName').disabled = true;
-                        updatePlayerList();
-                        updateRankingTable();
-                        if (gameStarted) {
-                            document.getElementById('gameConfig').style.display = 'none';
-                            document.getElementById('gamePlay').style.display = 'block';
-                            showCardLinks();
-                        } else {
-                            showPlayerView();
-                        }
-                    }
-                    isAdmin = localStorage.getItem(`bingoAdmin_${gameCode}`) === 'true';
-                }
-                updateUIForRole();
+                //This function is no longer needed with socket.io
             }
+
 
             function updateUIForRole() {
                 const adminElements = document.querySelectorAll('.admin-only');
@@ -455,39 +428,39 @@
                     return;
                 }
 
-                const admin = { name: adminName, active: true, status: 'Administrador' };
-                players = [admin];
-                gameState = {
-                    bingoName,
-                    players,
-                    generatedCards: [],
-                    gameCount: 0,
-                    winners: [],
-                    gameStarted: false
-                };
-
-                saveGameState();
+                gameCode = generateGameCode();
+                socket.emit('createGame', { gameCode, adminName, bingoName });
+                isAdmin = true;
                 document.getElementById('adminSetup').style.display = 'none';
                 document.getElementById('shareLink').style.display = 'block';
-                updatePlayerList();
-                updateRankingTable();
             });
 
             function joinGame() {
                 const playerName = document.getElementById('newPlayerName').value.trim();
-                if (playerName && !players.some(p => p.name === playerName)) {
-                    const newPlayer = { name: playerName, active: true, status: 'Jogador' };
-                    players.push(newPlayer);
-                    updatePlayerList();
-                    updateRankingTable();
-                    saveGameState();
+                if (playerName) {
+                    socket.emit('joinGame', { gameCode, playerName });
                     document.getElementById('playerSetup').style.display = 'none';
-                } else if (players.some(p => p.name === playerName)) {
-                    errorMessage.textContent = 'Este nome já está em uso. Por favor, escolha outro.';
                 }
             }
 
-            document.getElementById('joinGame').addEventListener('click', joinGame);
+            socket.on('gameState', (gameState) => {
+                players = gameState.players;
+                generatedCards = gameState.generatedCards;
+                gameCount = gameState.gameCount;
+                winners = gameState.winners;
+                gameStarted = gameState.gameStarted;
+                document.getElementById('bingoName').value = gameState.bingoName;
+                document.getElementById('bingoNameDisplay').textContent = gameState.bingoName;
+
+                updatePlayerList();
+                updateRankingTable();
+
+                if (gameStarted) {
+                    document.getElementById('gameConfig').style.display = 'none';
+                    document.getElementById('gamePlay').style.display = 'block';
+                    showCardLinks();
+                }
+            });
 
             playerNameInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
@@ -709,33 +682,7 @@
             }
 
             function startGameStatePolling() {
-                if (pollInterval) {
-                    clearInterval(pollInterval);
-                }
-
-                pollInterval = setInterval(() => {
-                    const savedState = localStorage.getItem(`bingoGameState_${gameCode}`);
-                    if (savedState) {
-                        const newState = JSON.parse(savedState);
-                        if (JSON.stringify(newState) !== JSON.stringify(gameState)) {
-                            gameState = newState;
-                            players = newState.players;
-                            generatedCards = newState.generatedCards;
-                            gameCount = newState.gameCount;
-                            winners = newState.winners;
-                            gameStarted = newState.gameStarted;
-
-                            updatePlayerList();
-                            updateRankingTable();
-
-                            if (gameStarted && document.getElementById('gameConfig').style.display !== 'none') {
-                                document.getElementById('gameConfig').style.display = 'none';
-                                document.getElementById('gamePlay').style.display = 'block';
-                                showCardLinks();
-                            }
-                        }
-                    }
-                }, 1000); // Atualiza a cada segundo
+                //This function is no longer needed with socket.io
             }
 
             function initializeGame() {
@@ -743,49 +690,15 @@
                 const loadedGameCode = urlParams.get('game');
 
                 if (loadedGameCode) {
-                    // Jogador entrando em um jogo existente
                     gameCode = loadedGameCode;
-                    isAdmin = localStorage.getItem(`bingoAdmin_${gameCode}`) === 'true';
+                    socket.emit('joinGame', { gameCode, playerName: '' });
                     document.getElementById('adminSetup').style.display = 'none';
                     document.getElementById('playerSetup').style.display = 'block';
-                    loadAndDisplayGameState();
-                    startGameStatePolling();
                 } else {
-                    // Novo jogo sendo criado
-                    gameCode = generateGameCode();
-                    localStorage.setItem(`bingoAdmin_${gameCode}`, 'true');
-                    isAdmin = true;
                     document.getElementById('adminSetup').style.display = 'block';
                     document.getElementById('playerSetup').style.display = 'none';
                 }
             }
-
-            function loadAndDisplayGameState() {
-                const savedState = localStorage.getItem(`bingoGameState_${gameCode}`);
-                if (savedState) {
-                    gameState = JSON.parse(savedState);
-                    players = gameState.players;
-                    generatedCards = gameState.generatedCards;
-                    gameCount = gameState.gameCount;
-                    winners = gameState.winners;
-                    gameStarted = gameState.gameStarted;
-
-                    // Atualiza o nome do bingo na interface
-                    const bingoNameDisplay = document.getElementById('bingoNameDisplay');
-                    bingoNameDisplay.textContent = gameState.bingoName;
-
-                    // Atualiza a lista de jogadores e o ranking
-                    updatePlayerList();
-                    updateRankingTable();
-
-                    if (gameStarted) {
-                        document.getElementById('gameConfig').style.display = 'none';
-                        document.getElementById('gamePlay').style.display = 'block';
-                        showCardLinks();
-                    }
-                }
-            }
-
 
             initializeGame();
         });
