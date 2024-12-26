@@ -2,14 +2,14 @@
     "version": 2,
     "builds": [
       {
-        "src": "Bingo.html",
+        "src": "index.html",
         "use": "@vercel/static"
       }
     ],
     "routes": [
       {
         "src": "/(.*)",
-        "dest": "/Bingo.html"
+        "dest": "/index.html"
       }
     ]
   }
