@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerador de Bingo Otimizado</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 10px;
+            background-color: #f0f2f5;
+            font-size: 16px;
+        }
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        }
+        h1, h2 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background: linear-gradient(135deg, #45a049, #4CAF50);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .error-message {
+            color: #ff3e3e;
+            margin-top: 10px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .player-entry {
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        .player-list {
+            margin: 15px 0;
+        }
+        .player-item {
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 5px;
+        }
+        .player-name {
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+        .player-actions {
+            display: flex;
+            gap: 5px;
+        }
+        .remove-btn, .toggle-btn {
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 14px;
+            flex: 1;
+        }
+        .remove-btn {
+            background-color: #dc3545;
+        }
+        .remove-btn:hover {
+            background-color: #c82333;
+        }
+        .toggle-btn {
+            background-color: #17a2b8;
+        }
+        .toggle-btn:hover {
+            background-color: #138496;
+        }
+        .inactive {
+            opacity: 0.5;
+        }
+        #cardLinks {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        #cardLinks a {
+            padding: 8px 16px;
+            background: #4CAF50;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+            font-size: 14px;
+            text-align: center;
+            flex: 1 0 40%;
+        }
+        #cardLinks a:hover {
+            background: #45a049;
+        }
+        #cardLinks a.inactive {
+            background: #6c757d;
+            pointer-events: none;
+        }
+        .bingo-card {
+            width: 100%;
+            max-width: 300px;
+            margin: 20px auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .bingo-header {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            background: #2c3e50;
+            color: white;
+            font-weight: bold;
+            text-align: center;
+            padding: 5px 0;
+            font-size: 14px;
+        }
+        .bingo-numbers {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 1px;
+            background: #eee;
+            padding: 1px;
+        }
+        .bingo-number {
+            aspect-ratio: 1;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .bingo-number:hover {
+            background: #f0f0f0;
+        }
+        .bingo-number.marked {
+            background: #4CAF50;
+            color: white;
+        }
+        .free-space {
+            background: #ffd700 !important;
+            font-weight: bold;
+            font-size: 24px;
+        }
+        .card-title {
+            text-align: center;
+            padding: 10px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #eee;
+            font-size: 14px;
+        }
+        #restartButton, #newGameButton {
+            margin-top: 20px;
+            background: linear-gradient(135deg, #3498db, #2980b9);
+        }
+        #restartButton:hover, #newGameButton:hover {
+            background: linear-gradient(135deg, #2980b9, #3498db);
+        }
+        #winnerSelection {
+            display: none;
+            margin-top: 20px;
+        }
+        #winnerButtons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        #winnerButtons button {
+            padding: 10px;
+            font-size: 14px;
+            flex: 1 0 40%;
+        }
+        #winnersTable {
+            width: 100%;
+            margin: 20px auto;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        #winnersTable th, #winnersTable td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        #winnersTable th {
+            background-color: #f2f2f2;
+        }
+        #gameContainer {
+            display: none;
+        }
+        #gameContainer #winnersTable {
+            margin-top: 20px;
+            width: 100%;
+            max-width: 300px;
+        }
+        @media (max-width: 600px) {
+            body {
+                font-size: 14px;
+            }
+            .container {
+                padding: 10px;
+            }
+            h1, h2 {
+                font-size: 1.2em;
+            }
+            .bingo-card {
+                max-width: 250px;
+            }
+            .bingo-number {
+                font-size: 16px;
+            }
+            #cardLinks a {
+                flex: 1 0 100%;
+            }
+            #winnerButtons button {
+                flex: 1 0 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="gameConfig">
+        <h1>Gerador de Bingo Otimizado</h1>
+        <form id="bingoForm">
+            <div class="form-group">
+                <label for="bingoName">Nome do Bingo:</label>
+                <input type="text" id="bingoName" required>
+            </div>
+            <div class="player-entry">
+                <div class="form-group">
+                    <label for="playerName">Nome do Jogador:</label>
+                    <input type="text" id="playerName">
+                    <button type="button" id="addPlayer">Adicionar Jogador</button>
+                </div>
+            </div>
+            <div class="player-list" id="playerList"></div>
+            <button type="submit">Gerar Cartelas</button>
+        </form>
+        <button id="newGameButton">Novo Jogo</button>
+        <div id="errorMessage" class="error-message"></div>
+        <table id="winnersTable">
+            <thead>
+                <tr>
+                    <th>Jogador</th>
+                    <th>Vitórias</th>
+                    <th>Fichas Ganhas</th>
+                </tr>
+            </thead>
+            <tbody id="winnersTableBody"></tbody>
+        </table>
+    </div>
+    <div id="gamePlay" style="display: none;">
+        <div id="cardLinks"></div>
+        <div id="gameContainer">
+            <div id="cardsContainer"></div>
+        </div>
+        <button id="restartButton">Reiniciar Jogo</button>
+        <button id="backToConfig">Voltar para Configuração</button>
+        <div id="winnerSelection">
+            <h2>Selecione o Vencedor</h2>
+            <div id="winnerButtons"></div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const form = document.getElementById('bingoForm');
+            const cardsContainer = document.getElementById('cardsContainer');
+            const errorMessage = document.getElementById('errorMessage');
+            const playerNameInput = document.getElementById('playerName');
+            const addPlayerButton = document.getElementById('addPlayer');
+            const playerList = document.getElementById('playerList');
+            const cardLinks = document.getElementById('cardLinks');
+            const restartButton = document.getElementById('restartButton');
+            const newGameButton = document.getElementById('newGameButton');
+            let players = [];
+            let generatedCards = [];
+            let gameCount = 0;
+            let winners = [];
+
+            function createPlayerElement(name, index) {
+                const playerDiv = document.createElement('div');
+                playerDiv.className = 'player-item';
+                playerDiv.innerHTML = `
+                    <span class="player-name">${name}</span>
+                    <div class="player-actions">
+                        <button type="button" class="toggle-btn">Ativar/Desativar</button>
+                        <button type="button" class="remove-btn">Remover</button>
+                    </div>
+                `;
+
+                playerDiv.querySelector('.remove-btn').addEventListener('click', () => {
+                    players.splice(index, 1);
+                    updatePlayerList();
+                });
+
+                playerDiv.querySelector('.toggle-btn').addEventListener('click', () => {
+                    players[index].active = !players[index].active;
+                    updatePlayerList();
+                });
+
+                return playerDiv;
+            }
+
+            function updatePlayerList() {
+                playerList.innerHTML = '';
+                players.forEach((player, index) => {
+                    const playerElement = createPlayerElement(player.name, index);
+                    if (!player.active) {
+                        playerElement.classList.add('inactive');
+                    }
+                    playerList.appendChild(playerElement);
+                });
+            }
+
+            addPlayerButton.addEventListener('click', () => {
+                const playerName = playerNameInput.value.trim();
+                if (playerName) {
+                    players.push({ name: playerName, active: true });
+                    updatePlayerList();
+                    playerNameInput.value = '';
+                    playerNameInput.focus();
+                }
+            });
+
+            playerNameInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addPlayerButton.click();
+                }
+            });
+
+            function generateColumnNumbers(min, max, count) {
+                const numbers = [];
+                for (let i = min; i <= max; i++) {
+                    numbers.push(i);
+                }
+                const shuffled = numbers.sort(() => Math.random() - 0.5);
+                return shuffled.slice(0, count);
+            }
+
+            function generateCard() {
+                const card = [
+                    generateColumnNumbers(1, 15, 5),    // B (1-15)
+                    generateColumnNumbers(16, 30, 5),   // I (16-30)
+                    generateColumnNumbers(31, 45, 5),   // N (31-45)
+                    generateColumnNumbers(46, 60, 5),   // G (46-60)
+                    generateColumnNumbers(61, 75, 5)    // O (61-75)
+                ];
+
+                // Ordenar os números em cada coluna
+                card.forEach(column => column.sort((a, b) => a - b));
+
+                // Adicionar a estrela no centro
+                card[2][2] = '★';
+
+                return card;
+            }
+
+            function displayCard(card, playerName, index, totalCards) {
+                const cardElement = document.createElement('div');
+                cardElement.className = 'bingo-card';
+                cardElement.id = `card-${index}`;
+
+                const header = `
+                    <div class="card-title">${playerName} - Cartela ${index + 1}/${totalCards}</div>
+                    <div class="bingo-header">
+                        <div>B</div>
+                        <div>I</div>
+                        <div>N</div>
+                        <div>G</div>
+                        <div>O</div>
+                    </div>
+                `;
+
+                const numbers = document.createElement('div');
+                numbers.className = 'bingo-numbers';
+
+                // Criar grid de números 5x5
+                for (let row = 0; row < 5; row++) {
+                    for (let col = 0; col < 5; col++) {
+                        const number = card[col][row];
+                        const cell = document.createElement('div');
+                        cell.className = `bingo-number${number === '★' ? ' free-space' : ''}`;
+                        cell.textContent = number;
+                        cell.addEventListener('click', () => {
+                            if (number !== '★') {
+                                cell.classList.toggle('marked');
+                            }
+                        });
+                        numbers.appendChild(cell);
+                    }
+                }
+
+                cardElement.innerHTML = header;
+                cardElement.appendChild(numbers);
+                return cardElement;
+            }
+
+            function showPlayerCard(index) {
+                const gameContainer = document.getElementById('gameContainer');
+                gameContainer.style.display = 'flex';
+                
+                const cardsContainer = document.getElementById('cardsContainer');
+                cardsContainer.innerHTML = '';
+                const card = generatedCards[index];
+                const playerName = players[index].name;
+                const cardElement = displayCard(card, playerName, index, players.filter(p => p.active).length);
+                cardsContainer.appendChild(cardElement);
+                
+                const winnersTable = document.getElementById('winnersTable').cloneNode(true);
+                winnersTable.style.marginTop = '20px';
+                cardsContainer.appendChild(winnersTable);
+
+                document.getElementById('cardLinks').style.display = 'none';
+                document.getElementById('restartButton').style.display = 'none';
+                document.getElementById('backToConfig').style.display = 'none';
+                
+                const backButton = document.createElement('button');
+                backButton.textContent = 'Voltar para Lista de Jogadores';
+                backButton.addEventListener('click', () => {
+                    document.getElementById('cardLinks').style.display = 'flex';
+                    document.getElementById('restartButton').style.display = 'block';
+                    document.getElementById('backToConfig').style.display = 'block';
+                    gameContainer.style.display = 'none';
+                    cardsContainer.innerHTML = '';
+                    backButton.remove();
+                });
+                cardsContainer.appendChild(backButton);
+                
+                updateWinnersTable();
+            }
+
+            function generateCards() {
+                gameCount++;
+                const bingoName = document.getElementById('bingoName').value;
+
+                if (!bingoName || players.length === 0) {
+                    errorMessage.textContent = 'Por favor, preencha o nome do bingo e adicione pelo menos um jogador.';
+                    return;
+                }
+
+                // Gerar cartelas apenas para jogadores ativos
+                generatedCards = players.filter(p => p.active).map(() => generateCard());
+
+                // Criar links para as cartelas
+                cardLinks.innerHTML = '';
+                players.forEach((player, index) => {
+                    if (player.active) {
+                        const link = document.createElement('a');
+                        link.href = '#';
+                        link.textContent = player.name;
+                        link.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            showPlayerCard(index);
+                        });
+                        cardLinks.appendChild(link);
+                    }
+                });
+
+                errorMessage.textContent = '';
+                document.getElementById('gameConfig').style.display = 'none';
+                document.getElementById('gamePlay').style.display = 'block';
+                document.getElementById('gameContainer').style.display = 'none';
+                showCardLinks();
+                updateWinnersTable();
+            }
+
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                generateCards();
+            });
+
+            function showCardLinks() {
+                cardLinks.style.display = 'flex';
+                cardsContainer.innerHTML = '';
+                document.getElementById('restartButton').style.display = 'block';
+                document.getElementById('backToConfig').style.display = 'block';
+            }
+
+            restartButton.addEventListener('click', () => {
+                document.getElementById('winnerSelection').style.display = 'block';
+                document.getElementById('winnerButtons').innerHTML = '';
+                players.forEach((player, index) => {
+                    if (player.active) {
+                        const button = document.createElement('button');
+                        button.textContent = player.name;
+                        button.addEventListener('click', () => selectWinner(player.name));
+                        document.getElementById('winnerButtons').appendChild(button);
+                    }
+                });
+                cardsContainer.innerHTML = '';
+            });
+
+            function selectWinner(winnerName) {
+                const activePlayerCount = players.filter(p => p.active).length;
+                winners.push({ round: gameCount, name: winnerName, playerCount: activePlayerCount });
+                updateWinnersTable();
+                document.getElementById('winnerSelection').style.display = 'none';
+                generateCards();
+                showCardLinks();
+            }
+
+            function updateWinnersTable() {
+                const tableBody = document.getElementById('winnersTableBody');
+                const playerTableBody = document.querySelector('#gameContainer #winnersTable tbody');
+                tableBody.innerHTML = '';
+                if (playerTableBody) playerTableBody.innerHTML = '';
+                
+                const playerWins = {};
+                const playerChips = {};
+                players.forEach(player => {
+                    playerWins[player.name] = 0;
+                    playerChips[player.name] = 0;
+                });
+                
+                winners.forEach(winner => {
+                    if (playerWins.hasOwnProperty(winner.name)) {
+                        playerWins[winner.name]++;
+                        playerChips[winner.name] += winner.playerCount;
+                    }
+                });
+                
+                Object.entries(playerWins).forEach(([playerName, wins]) => {
+                    const row = tableBody.insertRow();
+                    const cellName = row.insertCell(0);
+                    const cellWins = row.insertCell(1);
+                    const cellChips = row.insertCell(2);
+                    cellName.textContent = playerName;
+                    cellWins.textContent = wins;
+                    cellChips.textContent = playerChips[playerName];
+
+                    if (playerTableBody) {
+                        const playerRow = playerTableBody.insertRow();
+                        playerRow.insertCell(0).textContent = playerName;
+                        playerRow.insertCell(1).textContent = wins;
+                        playerRow.insertCell(2).textContent = playerChips[playerName];
+                    }
+                });
+            }
+
+            document.getElementById('backToConfig').addEventListener('click', () => {
+                document.getElementById('gamePlay').style.display = 'none';
+                document.getElementById('gameConfig').style.display = 'block';
+                cardsContainer.innerHTML = '';
+            });
+
+            newGameButton.addEventListener('click', () => {
+                players = [];
+                generatedCards = [];
+                gameCount = 0;
+                winners = [];
+                updatePlayerList();
+                updateWinnersTable();
+                document.getElementById('bingoName').value = '';
+                errorMessage.textContent = '';
+            });
+        });
+    </script>
+</body>
+</html>
+
