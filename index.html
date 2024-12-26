@@ -4,6 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gerador de Bingo Otimizado</title>
+    <!-- Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCmnvGXlab70lv6LPK9uMkny33V_sfCIHU",
+            authDomain: "bingo-do-trentini.firebaseapp.com",
+            databaseURL: "https://bingo-do-trentini-default-rtdb.firebaseio.com",
+            projectId: "bingo-do-trentini",
+            storageBucket: "bingo-do-trentini.firebasestorage.app",
+            messagingSenderId: "800451986398",
+            appId: "1:800451986398:web:f6315e4bfd070bc029934f"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        window.db = getDatabase(app);
+        window.dbRef = ref;
+        window.dbSet = set;
+        window.dbOnValue = onValue;
+    </script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
 
@@ -230,6 +251,44 @@
         .inactive {
             opacity: 0.5;
         }
+
+        /* Novas classes para o sorteio */
+        .number-announcement {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #4CAF50;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            animation: slideIn 0.5s ease-out;
+            z-index: 1000;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+
+        #drawnNumbersList {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin: 10px 0;
+        }
+
+        .drawn-number {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #4CAF50;
+            color: white;
+            border-radius: 50%;
+            font-weight: bold;
+        }
+
         @media (max-width: 600px) {
             body {
                 font-size: 14px;
@@ -252,6 +311,11 @@
             #winnerButtons button {
                 flex: 1 0 100%;
             }
+            .drawn-number {
+                width: 30px;
+                height: 30px;
+                font-size: 12px;
+            }
         }
     </style>
 </head>
@@ -266,6 +330,17 @@
                 <div class="form-group">
                     <label for="bingoName">Nome do Bingo:</label>
                     <input type="text" id="bingoName" required>
+                </div>
+                <div class="form-group">
+                    <label for="autoDrawing">Sorteio Automático:</label>
+                    <select id="autoDrawing" class="form-control">
+                        <option value="false">Não</option>
+                        <option value="true">Sim</option>
+                    </select>
+                </div>
+                <div class="form-group" id="drawingIntervalGroup" style="display: none;">
+                    <label for="drawingInterval">Intervalo entre sorteios (segundos):</label>
+                    <input type="number" id="drawingInterval" min="5" max="60" value="10">
                 </div>
                 <div class="player-entry">
                     <div class="form-group">
@@ -303,6 +378,15 @@
         </table>
     </div>
     <div id="gamePlay" style="display: none;">
+        <div id="gameHeader">
+            <div id="drawnNumbersContainer">
+                <h3>Números Sorteados</h3>
+                <div id="drawnNumbersList"></div>
+            </div>
+            <div id="gameControls">
+                <button id="drawNumberButton" style="display: none;">Sortear Número</button>
+            </div>
+        </div>
         <div id="cardLinks"></div>
         <div id="gameContainer">
             <div id="cardsContainer"></div>
@@ -315,7 +399,7 @@
         </div>
     </div>
 
-    <script>
+    <script type="module">
         document.addEventListener('DOMContentLoaded', () => {
             const form = document.getElementById('bingoForm');
             const cardsContainer = document.getElementById('cardsContainer');
@@ -327,6 +411,11 @@
             const restartButton = document.getElementById('restartButton');
             const startGameButton = document.getElementById('startGameButton');
             const shareLinkDiv = document.getElementById('shareLink');
+            const autoDrawingSelect = document.getElementById('autoDrawing');
+            const drawingIntervalGroup = document.getElementById('drawingIntervalGroup');
+            const drawNumberButton = document.getElementById('drawNumberButton');
+            const drawnNumbersList = document.getElementById('drawnNumbersList);
+
             let players = [];
             let generatedCards = [];
             let gameCount = 0;
@@ -336,7 +425,9 @@
             let openCardIndex = -1;
             let gameStarted = false;
             let gameState = null;
-            let pollInterval = null;
+            let drawnNumbers = new Set();
+            let drawingInterval = null;
+            let isAutomaticDrawing = false;
 
             function generateGameCode() {
                 return Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -349,101 +440,40 @@
                     gameCount,
                     winners,
                     bingoName: document.getElementById('bingoName').value,
-                    gameStarted
+                    gameStarted,
+                    drawnNumbers: Array.from(drawnNumbers),
+                    isAutomaticDrawing,
+                    drawingInterval: document.getElementById('drawingInterval').value
                 };
-                localStorage.setItem(`bingoGameState_${gameCode}`, JSON.stringify(gameState));
+                
+                window.dbSet(window.dbRef(window.db, `games/${gameCode}`), gameState);
                 const shareUrl = `${window.location.origin}${window.location.pathname}?game=${gameCode}`;
                 shareLinkDiv.innerHTML = `<p>Compartilhe este link: <a href="${shareUrl}" target="_blank">${shareUrl}</a></p>`;
                 history.pushState(null, '', `?game=${gameCode}`);
             }
 
-            function loadGameState() {
-                const urlParams = new URLSearchParams(window.location.search);
-                const loadedGameCode = urlParams.get('game');
-                if (loadedGameCode) {
-                    gameCode = loadedGameCode;
-                    const savedState = localStorage.getItem(`bingoGameState_${gameCode}`);
-                    if (savedState) {
-                        const gameState = JSON.parse(savedState);
-                        players = gameState.players;
-                        generatedCards = gameState.generatedCards;
-                        gameCount = gameState.gameCount;
-                        winners = gameState.winners;
-                        gameStarted = gameState.gameStarted;
-                        document.getElementById('bingoName').value = gameState.bingoName;
-                        document.getElementById('bingoName').disabled = true;
-                        updatePlayerList();
-                        updateRankingTable();
-                        if (gameStarted) {
-                            document.getElementById('gameConfig').style.display = 'none';
-                            document.getElementById('gamePlay').style.display = 'block';
-                            showCardLinks();
-                        } else {
-                            showPlayerView();
-                        }
-                    }
-                    isAdmin = localStorage.getItem(`bingoAdmin_${gameCode}`) === 'true';
-                }
-                updateUIForRole();
-            }
-
-            function updateUIForRole() {
-                const adminElements = document.querySelectorAll('.admin-only');
-                adminElements.forEach(el => {
-                    el.style.display = isAdmin ? 'block' : 'none';
-                });
-                startGameButton.style.display = isAdmin && players.length > 1 ? 'block' : 'none';
-                restartButton.style.display = isAdmin ? 'block' : 'none';
-                document.getElementById('backToConfig').style.display = isAdmin ? 'block' : 'none';
-
-                if (!isAdmin && !gameStarted) {
-                    showPlayerView();
-                }
-            }
-
-            function createPlayerElement(player, index) {
-                const playerDiv = document.createElement('div');
-                playerDiv.className = 'player-item';
-                playerDiv.innerHTML = `
-                    <span class="player-name">${player.name}</span>
-                    <span class="player-status">${player.status}</span>
-                    ${isAdmin ? `
-                        <div class="player-actions">
-                            <button type="button" class="toggle-btn">${player.active ? 'Desativar' : 'Ativar'}</button>
-                            <button type="button" class="remove-btn">Remover</button>
-                        </div>
-                    ` : ''}
-                `;
-
-                if (isAdmin) {
-                    playerDiv.querySelector('.toggle-btn').addEventListener('click', () => {
-                        players[index].active =!players[index].active;
-                        updatePlayerList();
-                        saveGameState();
-                    });
-
-                    playerDiv.querySelector('.remove-btn').addEventListener('click', () => {
-                        players.splice(index, 1);
-                        updatePlayerList();
-                        saveGameState();
-                    });
+            function updateFromFirebase(data) {
+                players = data.players;
+                generatedCards = data.generatedCards;
+                gameCount = data.gameCount;
+                winners = data.winners;
+                gameStarted = data.gameStarted;
+                drawnNumbers = new Set(data.drawnNumbers || []);
+                isAutomaticDrawing = data.isAutomaticDrawing;
+                
+                if (data.drawingInterval) {
+                    document.getElementById('drawingInterval').value = data.drawingInterval;
                 }
 
-                return playerDiv;
-            }
-
-            function updatePlayerList() {
-                playerList.innerHTML = '';
-                players.forEach((player, index) => {
-                    const playerElement = createPlayerElement(player, index);
-                    if (!player.active) {
-                        playerElement.classList.add('inactive');
-                    }
-                    playerList.appendChild(playerElement);
-                });
-                updateStartGameButtonVisibility();
-                updateUIForRole();
+                updatePlayerList();
                 updateRankingTable();
+                updateDrawnNumbers();
+
+                if (gameStarted) {
+                    document.getElementById('gameConfig').style.display = 'none';
+                    document.getElementById('gamePlay').style.display = 'block';
+                    showCardLinks();
+                }
             }
 
             function generateColumn(min, max, count, usedNumbers) {
@@ -475,7 +505,7 @@
                         }
                     }
                 }
-                return commonNumbers / 24; // Excluindo espaço central
+                return commonNumbers / 24;
             }
 
             function generateCards(playerCount) {
@@ -512,7 +542,6 @@
                     
                     cards.push(bestCard);
                     
-                    // Atualiza números usados
                     for (let col = 0; col < 5; col++) {
                         bestCard[col].forEach(num => {
                             if (num !== '★') {
@@ -524,6 +553,124 @@
                 
                 return cards;
             }
+
+            function updateDrawnNumbers() {
+                drawnNumbersList.innerHTML = '';
+                Array.from(drawnNumbers).sort((a, b) => a - b).forEach(number => {
+                    const numberDiv = document.createElement('div');
+                    numberDiv.className = 'drawn-number';
+                    numberDiv.textContent = number;
+                    drawnNumbersList.appendChild(numberDiv);
+                });
+            }
+
+            function drawNumber() {
+                if (drawnNumbers.size >= 75) {
+                    stopAutomaticDrawing();
+                    return;
+                }
+
+                let number;
+                do {
+                    number = Math.floor(Math.random() * 75) + 1;
+                } while (drawnNumbers.has(number));
+
+                drawnNumbers.add(number);
+                
+                // Criar anúncio
+                const announcement = document.createElement('div');
+                announcement.className = 'number-announcement';
+                announcement.textContent = `Número sorteado: ${number}`;
+                document.body.appendChild(announcement);
+                
+                setTimeout(() => announcement.remove(), 4000);
+                
+                updateDrawnNumbers();
+                saveGameState();
+                checkWinningCards();
+            }
+
+            function startAutomaticDrawing() {
+                if (drawingInterval) return;
+                
+                const interval = parseInt(document.getElementById('drawingInterval').value) * 1000;
+                drawingInterval = setInterval(drawNumber, interval);
+                isAutomaticDrawing = true;
+                saveGameState();
+            }
+
+            function stopAutomaticDrawing() {
+                if (drawingInterval) {
+                    clearInterval(drawingInterval);
+                    drawingInterval = null;
+                }
+                isAutomaticDrawing = false;
+                saveGameState();
+            }
+
+            function checkWinningCards() {
+                const activeCards = document.querySelectorAll('.bingo-card');
+                activeCards.forEach(card => {
+                    const numbers = card.querySelectorAll('.bingo-number');
+                    let isWinner = false;
+
+                    // Verifica linhas
+                    for (let i = 0; i < 5; i++) {
+                        const row = Array.from(numbers).slice(i * 5, (i + 1) * 5);
+                        if (row.every(cell => cell.classList.contains('marked') || cell.classList.contains('free-space'))) {
+                            isWinner = true;
+                            break;
+                        }
+                    }
+
+                    // Verifica colunas
+                    if (!isWinner) {
+                        for (let i = 0; i < 5; i++) {
+                            const column = Array.from(numbers).filter((_, index) => index % 5 === i);
+                            if (column.every(cell => cell.classList.contains('marked') || cell.classList.contains('free-space'))) {
+                                isWinner = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    // Verifica diagonais
+                    const mainDiagonal = [numbers[0], numbers[6], numbers[12], numbers[18], numbers[24]];
+                    const secondaryDiagonal = [numbers[4], numbers[8], numbers[12], numbers[16], numbers[20]];
+
+                    if (!isWinner) {
+                        if (mainDiagonal.every(cell => cell.classList.contains('marked') || cell.classList.contains('free-space')) ||
+                            secondaryDiagonal.every(cell => cell.classList.contains('marked') || cell.classList.contains('free-space'))) {
+                            isWinner = true;
+                        }
+                    }
+
+                    if (isWinner) {
+                        stopAutomaticDrawing();
+                        announceWinner(card.querySelector('.card-title').textContent.split(' - ')[0]);
+                    }
+                });
+            }
+
+            function announceWinner(playerName) {
+                const announcement = document.createElement('div');
+                announcement.className = 'number-announcement';
+                announcement.style.background = '#FFD700';
+                announcement.style.color = '#000';
+                announcement.textContent = `BINGO! ${playerName} venceu!`;
+                document.body.appendChild(announcement);
+                
+                setTimeout(() => {
+                    announcement.remove();
+                    if (isAdmin) {
+                        selectWinner(playerName);
+                    }
+                }, 5000);
+            }
+
+            autoDrawingSelect.addEventListener('change', (e) => {
+                drawingIntervalGroup.style.display = e.target.value === 'true' ? 'block' : 'none';
+            });
 
             createGameButton.addEventListener('click', () => {
                 const bingoName = document.getElementById('bingoName').value.trim();
@@ -542,7 +689,9 @@
                     generatedCards: [],
                     gameCount: 0,
                     winners: [],
-                    gameStarted: false
+                    gameStarted: false,
+                    drawnNumbers: [],
+                    isAutomaticDrawing: false
                 };
 
                 saveGameState();
@@ -550,7 +699,9 @@
                 document.getElementById('shareLink').style.display = 'block';
                 updatePlayerList();
                 updateRankingTable();
-            });function joinGame() {
+            });
+
+            function joinGame() {
                 const playerName = document.getElementById('newPlayerName').value.trim();
                 if (playerName && !players.some(p => p.name === playerName)) {
                     const newPlayer = { name: playerName, active: true, status: 'Jogador' };
@@ -572,6 +723,51 @@
                     createGameButton.click();
                 }
             });
+
+            function createPlayerElement(player, index) {
+                const playerDiv = document.createElement('div');
+                playerDiv.className = 'player-item';
+                playerDiv.innerHTML = `
+                    <span class="player-name">${player.name}</span>
+                    <span class="player-status">${player.status}</span>
+                    ${isAdmin ? `
+                        <div class="player-actions">
+                            <button type="button" class="toggle-btn">${player.active ? 'Desativar' : 'Ativar'}</button>
+                            <button type="button" class="remove-btn">Remover</button>
+                        </div>
+                    ` : ''}
+                `;
+
+                if (isAdmin) {
+                    playerDiv.querySelector('.toggle-btn').addEventListener('click', () => {
+                        players[index].active = !players[index].active;
+                        updatePlayerList();
+                        saveGameState();
+                    });
+
+                    playerDiv.querySelector('.remove-btn').addEventListener('click', () => {
+                        players.splice(index, 1);
+                        updatePlayerList();
+                        saveGameState();
+                    });
+                }
+
+                return playerDiv;
+            }
+
+            function updatePlayerList() {
+                playerList.innerHTML = '';
+                players.forEach((player, index) => {
+                    const playerElement = createPlayerElement(player, index);
+                    if (!player.active) {
+                        playerElement.classList.add('inactive');
+                    }
+                    playerList.appendChild(playerElement);
+                });
+                updateStartGameButtonVisibility();
+                updateUIForRole();
+                updateRankingTable();
+            }
 
             function displayCard(card, playerName, index, totalCards) {
                 const cardElement = document.createElement('div');
@@ -598,11 +794,17 @@
                         const cell = document.createElement('div');
                         cell.className = `bingo-number${number === '★' ? ' free-space' : ''}`;
                         cell.textContent = number;
-                        cell.addEventListener('click', () => {
-                            if (number !== '★') {
-                                cell.classList.toggle('marked');
+                        
+                        if (number !== '★') {
+                            if (drawnNumbers.has(number)) {
+                                cell.classList.add('marked');
                             }
-                        });
+                            cell.addEventListener('click', () => {
+                                cell.classList.toggle('marked');
+                                checkWinningCards();
+                            });
+                        }
+                        
                         numbers.appendChild(cell);
                     }
                 }
@@ -639,6 +841,13 @@
 
                 const activePlayers = players.filter(p => p.active);
                 generatedCards = generateCards(activePlayers.length);
+                drawnNumbers.clear();
+
+                if (autoDrawingSelect.value === 'true') {
+                    startAutomaticDrawing();
+                } else {
+                    drawNumberButton.style.display = isAdmin ? 'block' : 'none';
+                }
 
                 cardLinks.innerHTML = '';
                 activePlayers.forEach((player, index) => {
@@ -668,7 +877,9 @@
                 } else {
                     errorMessage.textContent = 'É necessário ter pelo menos um jogador ativo para iniciar o jogo.';
                 }
-            });function showCardLinks() {
+            });
+
+            function showCardLinks() {
                 cardLinks.style.display = 'flex';
                 cardsContainer.innerHTML = '';
                 document.getElementById('restartButton').style.display = isAdmin ? 'block' : 'none';
@@ -684,9 +895,12 @@
                     cardElement.style.display = 'none';
                     cardsContainer.appendChild(cardElement);
                 });
+
+                updateDrawnNumbers();
             }
 
             restartButton.addEventListener('click', () => {
+                stopAutomaticDrawing();
                 document.getElementById('winnerSelection').style.display = 'block';
                 document.getElementById('winnerButtons').innerHTML = '';
                 players.forEach((player, index) => {
@@ -733,6 +947,7 @@
             }
 
             document.getElementById('backToConfig').addEventListener('click', () => {
+                stopAutomaticDrawing();
                 document.getElementById('gamePlay').style.display = 'none';
                 document.getElementById('gameConfig').style.display = 'block';
                 cardsContainer.innerHTML = '';
@@ -755,37 +970,22 @@
             }
 
             function updateStartGameButtonVisibility() {
-                startGameButton.style.display = (players.length > 1) ? 'block' : 'none';
+                startGameButton.style.display = (players.length > 1 && isAdmin) ? 'block' : 'none';
             }
 
-            function startGameStatePolling() {
-                if (pollInterval) {
-                    clearInterval(pollInterval);
+            function updateUIForRole() {
+                const adminElements = document.querySelectorAll('.admin-only');
+                adminElements.forEach(el => {
+                    el.style.display = isAdmin ? 'block' : 'none';
+                });
+                drawNumberButton.style.display = isAdmin && gameStarted ? 'block' : 'none';
+                startGameButton.style.display = isAdmin && players.length > 1 ? 'block' : 'none';
+                restartButton.style.display = isAdmin ? 'block' : 'none';
+                document.getElementById('backToConfig').style.display = isAdmin ? 'block' : 'none';
+
+                if (!isAdmin && !gameStarted) {
+                    showPlayerView();
                 }
-
-                pollInterval = setInterval(() => {
-                    const savedState = localStorage.getItem(`bingoGameState_${gameCode}`);
-                    if (savedState) {
-                        const newState = JSON.parse(savedState);
-                        if (JSON.stringify(newState) !== JSON.stringify(gameState)) {
-                            gameState = newState;
-                            players = newState.players;
-                            generatedCards = newState.generatedCards;
-                            gameCount = newState.gameCount;
-                            winners = newState.winners;
-                            gameStarted = newState.gameStarted;
-
-                            updatePlayerList();
-                            updateRankingTable();
-
-                            if (gameStarted && document.getElementById('gameConfig').style.display !== 'none') {
-                                document.getElementById('gameConfig').style.display = 'none';
-                                document.getElementById('gamePlay').style.display = 'block';
-                                showCardLinks();
-                            }
-                        }
-                    }
-                }, 1000);
             }
 
             function initializeGame() {
@@ -797,8 +997,7 @@
                     isAdmin = localStorage.getItem(`bingoAdmin_${gameCode}`) === 'true';
                     document.getElementById('adminSetup').style.display = 'none';
                     document.getElementById('playerSetup').style.display = 'block';
-                    loadAndDisplayGameState();
-                    startGameStatePolling();
+                    startRealTimeSync();
                 } else {
                     gameCode = generateGameCode();
                     localStorage.setItem(`bingoAdmin_${gameCode}`, 'true');
@@ -808,29 +1007,16 @@
                 }
             }
 
-            function loadAndDisplayGameState() {
-                const savedState = localStorage.getItem(`bingoGameState_${gameCode}`);
-                if (savedState) {
-                    gameState = JSON.parse(savedState);
-                    players = gameState.players;
-                    generatedCards = gameState.generatedCards;
-                    gameCount = gameState.gameCount;
-                    winners = gameState.winners;
-                    gameStarted = gameState.gameStarted;
-
-                    const bingoNameDisplay = document.getElementById('bingoNameDisplay');
-                    bingoNameDisplay.textContent = gameState.bingoName;
-
-                    updatePlayerList();
-                    updateRankingTable();
-
-                    if (gameStarted) {
-                        document.getElementById('gameConfig').style.display = 'none';
-                        document.getElementById('gamePlay').style.display = 'block';
-                        showCardLinks();
+            function startRealTimeSync() {
+                window.dbOnValue(window.dbRef(window.db, `games/${gameCode}`), (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        updateFromFirebase(data);
                     }
-                }
+                });
             }
+
+            drawNumberButton.addEventListener('click', drawNumber);
 
             initializeGame();
         });
