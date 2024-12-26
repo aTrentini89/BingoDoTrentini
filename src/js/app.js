@@ -1,8 +1,23 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const socket = io();
+    // Configuração do Socket.io com opções de reconexão
+    const socket = io({
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        timeout: 10000
+    });
     
+    const errorMessage = document.getElementById('errorMessage');
+
     socket.on('connect', () => {
         console.log('Connected to server');
+        errorMessage.textContent = ''; // Limpa mensagem de erro quando conectado
+    });
+
+    socket.on('connected', (data) => {
+        console.log('Server confirmed connection:', data);
+        errorMessage.textContent = ''; // Limpa mensagem de erro quando conectado
     });
 
     socket.on('connect_error', (error) => {
@@ -12,7 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('error', (error) => {
         console.error('Server error:', error);
-        errorMessage.textContent = error.message;
+        errorMessage.textContent = error.message || 'Ocorreu um erro no servidor.';
     });
 
     // Elementos do DOM
