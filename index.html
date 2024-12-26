@@ -81,7 +81,8 @@
         }
         .player-item {
             display: flex;
-            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
             padding: 10px;
             background-color: white;
             border: 1px solid #ddd;
@@ -90,35 +91,10 @@
         }
         .player-name {
             font-weight: 500;
-            margin-bottom: 5px;
         }
-        .player-actions {
-            display: flex;
-            gap: 5px;
-        }
-        .remove-btn, .toggle-btn {
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 3px;
-            cursor: pointer;
-            font-size: 14px;
-            flex: 1;
-        }
-        .remove-btn {
-            background-color: #dc3545;
-        }
-        .remove-btn:hover {
-            background-color: #c82333;
-        }
-        .toggle-btn {
-            background-color: #17a2b8;
-        }
-        .toggle-btn:hover {
-            background-color: #138496;
-        }
-        .inactive {
-            opacity: 0.5;
+        .player-status {
+            font-size: 0.9em;
+            color: #666;
         }
         #cardLinks {
             display: flex;
@@ -199,11 +175,11 @@
             border-bottom: 1px solid #eee;
             font-size: 14px;
         }
-        #restartButton, #newGameButton {
+        #restartButton, #newGameButton, #startGameButton {
             margin-top: 20px;
             background: linear-gradient(135deg, #3498db, #2980b9);
         }
-        #restartButton:hover, #newGameButton:hover {
+        #restartButton:hover, #newGameButton:hover, #startGameButton:hover {
             background: linear-gradient(135deg, #2980b9, #3498db);
         }
         #winnerSelection {
@@ -277,15 +253,15 @@
             </div>
             <div class="player-entry">
                 <div class="form-group">
-                    <label for="playerName">Nome do Jogador:</label>
+                    <label for="playerName">Seu Nome:</label>
                     <input type="text" id="playerName">
-                    <button type="button" id="addPlayer">Adicionar Jogador</button>
+                    <button type="button" id="joinGame">Entrar no Jogo</button>
                 </div>
             </div>
             <div class="player-list" id="playerList"></div>
-            <button type="submit">Gerar Cartelas</button>
+            <button type="submit" id="startGameButton" style="display: none;">Iniciar Jogo</button>
         </form>
-        <button id="newGameButton">Novo Jogo</button>
+        <button id="newGameButton" style="display: none;">Novo Jogo</button>
         <div id="errorMessage" class="error-message"></div>
         <div id="shareLink" style="margin-top: 20px;"></div>
         <table id="winnersTable">
@@ -318,11 +294,12 @@
             const cardsContainer = document.getElementById('cardsContainer');
             const errorMessage = document.getElementById('errorMessage');
             const playerNameInput = document.getElementById('playerName');
-            const addPlayerButton = document.getElementById('addPlayer');
+            const joinGameButton = document.getElementById('joinGame');
             const playerList = document.getElementById('playerList');
             const cardLinks = document.getElementById('cardLinks');
             const restartButton = document.getElementById('restartButton');
             const newGameButton = document.getElementById('newGameButton');
+            const startGameButton = document.getElementById('startGameButton');
             const shareLinkDiv = document.getElementById('shareLink');
             let players = [];
             let generatedCards = [];
@@ -330,7 +307,8 @@
             let winners = [];
             let gameCode = '';
             let isAdmin = false;
-            let openCardIndex = -1; // Added variable to track open card
+            let openCardIndex = -1;
+            let gameStarted = false;
 
             function generateGameCode() {
                 return Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -342,7 +320,8 @@
                     generatedCards,
                     gameCount,
                     winners,
-                    bingoName: document.getElementById('bingoName').value
+                    bingoName: document.getElementById('bingoName').value,
+                    gameStarted
                 };
                 localStorage.setItem(`bingoGameState_${gameCode}`, JSON.stringify(gameState));
                 const shareUrl = `${window.location.origin}${window.location.pathname}?game=${gameCode}`;
@@ -362,10 +341,11 @@
                         generatedCards = gameState.generatedCards;
                         gameCount = gameState.gameCount;
                         winners = gameState.winners;
+                        gameStarted = gameState.gameStarted;
                         document.getElementById('bingoName').value = gameState.bingoName;
                         updatePlayerList();
                         updateWinnersTable();
-                        if (generatedCards.length > 0) {
+                        if (gameStarted) {
                             document.getElementById('gameConfig').style.display = 'none';
                             document.getElementById('gamePlay').style.display = 'block';
                             showCardLinks();
@@ -385,57 +365,36 @@
                 adminElements.forEach(el => {
                     el.style.display = isAdmin ? 'block' : 'none';
                 });
-                document.getElementById('bingoForm').style.display = isAdmin ? 'block' : 'none';
-                addPlayerButton.style.display = isAdmin ? 'block' : 'none';
+                startGameButton.style.display = isAdmin ? 'block' : 'none';
                 newGameButton.style.display = isAdmin ? 'block' : 'none';
                 restartButton.style.display = isAdmin ? 'block' : 'none';
                 document.getElementById('backToConfig').style.display = isAdmin ? 'block' : 'none';
             }
 
-            function createPlayerElement(name, index) {
+            function createPlayerElement(player) {
                 const playerDiv = document.createElement('div');
                 playerDiv.className = 'player-item';
                 playerDiv.innerHTML = `
-                    <span class="player-name">${name}</span>
-                    <div class="player-actions">
-                        <button type="button" class="toggle-btn admin-only">Ativar/Desativar</button>
-                        <button type="button" class="remove-btn admin-only">Remover</button>
-                    </div>
+                    <span class="player-name">${player.name}</span>
+                    <span class="player-status">${player.status}</span>
                 `;
-
-                if (isAdmin) {
-                    playerDiv.querySelector('.remove-btn').addEventListener('click', () => {
-                        players.splice(index, 1);
-                        updatePlayerList();
-                        saveGameState();
-                    });
-
-                    playerDiv.querySelector('.toggle-btn').addEventListener('click', () => {
-                        players[index].active = !players[index].active;
-                        updatePlayerList();
-                        saveGameState();
-                    });
-                }
-
                 return playerDiv;
             }
 
             function updatePlayerList() {
                 playerList.innerHTML = '';
-                players.forEach((player, index) => {
-                    const playerElement = createPlayerElement(player.name, index);
-                    if (!player.active) {
-                        playerElement.classList.add('inactive');
-                    }
+                players.forEach((player) => {
+                    const playerElement = createPlayerElement(player);
                     playerList.appendChild(playerElement);
                 });
                 updateUIForRole();
             }
 
-            addPlayerButton.addEventListener('click', () => {
+            joinGameButton.addEventListener('click', () => {
                 const playerName = playerNameInput.value.trim();
                 if (playerName) {
-                    players.push({ name: playerName, active: true });
+                    const newPlayer = { name: playerName, status: 'Aguardando início' };
+                    players.push(newPlayer);
                     updatePlayerList();
                     playerNameInput.value = '';
                     playerNameInput.focus();
@@ -446,7 +405,7 @@
             playerNameInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
                     e.preventDefault();
-                    addPlayerButton.click();
+                    joinGameButton.click();
                 }
             });
 
@@ -516,16 +475,13 @@
                 const cardElement = document.getElementById(`card-${index}`);
 
                 if (openCardIndex === index) {
-                    // Fechar a cartela se já estiver aberta
                     cardElement.style.display = 'none';
                     openCardIndex = -1;
                 } else {
-                    // Fechar a cartela anteriormente aberta
                     if (openCardIndex !== -1) {
                         document.getElementById(`card-${openCardIndex}`).style.display = 'none';
                     }
 
-                    // Abrir a nova cartela
                     cardElement.style.display = 'block';
                     openCardIndex = index;
                 }
@@ -540,20 +496,18 @@
                     return;
                 }
 
-                generatedCards = players.filter(p => p.active).map(() => generateCard());
+                generatedCards = players.map(() => generateCard());
 
                 cardLinks.innerHTML = '';
                 players.forEach((player, index) => {
-                    if (player.active) {
-                        const link = document.createElement('a');
-                        link.href = '#';
-                        link.textContent = player.name;
-                        link.addEventListener('click', (e) => {
-                            e.preventDefault();
-                            showPlayerCard(index);
-                        });
-                        cardLinks.appendChild(link);
-                    }
+                    const link = document.createElement('a');
+                    link.href = '#';
+                    link.textContent = player.name;
+                    link.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        showPlayerCard(index);
+                    });
+                    cardLinks.appendChild(link);
                 });
 
                 errorMessage.textContent = '';
@@ -561,10 +515,11 @@
                 document.getElementById('gamePlay').style.display = 'block';
                 showCardLinks();
                 updateWinnersTable();
+                gameStarted = true;
                 saveGameState();
             }
 
-            form.addEventListener('submit', (e) => {
+            startGameButton.addEventListener('click', (e) => {
                 e.preventDefault();
                 generateCards();
             });
@@ -575,18 +530,14 @@
                 document.getElementById('restartButton').style.display = isAdmin ? 'block' : 'none';
                 document.getElementById('backToConfig').style.display = isAdmin ? 'block' : 'none';
 
-                // Exibir o placar
                 const winnersTable = document.getElementById('winnersTable').cloneNode(true);
                 winnersTable.style.marginTop = '20px';
                 cardLinks.appendChild(winnersTable);
 
-                // Exibir as cartelas geradas
                 players.forEach((player, index) => {
-                    if (player.active) {
-                        const cardElement = displayCard(generatedCards[index], player.name, index, players.filter(p => p.active).length);
-                        cardElement.style.display = 'none'; // Inicialmente oculto
-                        cardsContainer.appendChild(cardElement);
-                    }
+                    const cardElement = displayCard(generatedCards[index], player.name, index, players.length);
+                    cardElement.style.display = 'none';
+                    cardsContainer.appendChild(cardElement);
                 });
             }
 
@@ -594,18 +545,16 @@
                 document.getElementById('winnerSelection').style.display = 'block';
                 document.getElementById('winnerButtons').innerHTML = '';
                 players.forEach((player, index) => {
-                    if (player.active) {
-                        const button = document.createElement('button');
-                        button.textContent = player.name;
-                        button.addEventListener('click', () => selectWinner(player.name));
-                        document.getElementById('winnerButtons').appendChild(button);
-                    }
+                    const button = document.createElement('button');
+                    button.textContent = player.name;
+                    button.addEventListener('click', () => selectWinner(player.name));
+                    document.getElementById('winnerButtons').appendChild(button);
                 });
                 cardsContainer.innerHTML = '';
             });
 
             function selectWinner(winnerName) {
-                const activePlayerCount = players.filter(p => p.active).length;
+                const activePlayerCount = players.length;
                 winners.push({ round: gameCount, name: winnerName, playerCount: activePlayerCount });
                 updateWinnersTable();
                 document.getElementById('winnerSelection').style.display = 'none';
@@ -663,6 +612,7 @@
                 generatedCards = [];
                 gameCount = 0;
                 winners = [];
+                gameStarted = false;
                 updatePlayerList();
                 updateWinnersTable();
                 document.getElementById('bingoName').value = '';
