@@ -362,13 +362,11 @@
                             document.getElementById('gameConfig').style.display = 'none';
                             document.getElementById('gamePlay').style.display = 'block';
                             showCardLinks();
+                        } else {
+                            showAdminView();
                         }
                     }
                     isAdmin = localStorage.getItem(`bingoAdmin_${gameCode}`) === 'true';
-                } else {
-                    gameCode = generateGameCode();
-                    localStorage.setItem(`bingoAdmin_${gameCode}`, 'true');
-                    isAdmin = true;
                 }
                 updateUIForRole();
             }
@@ -378,10 +376,13 @@
                 adminElements.forEach(el => {
                     el.style.display = isAdmin ? 'block' : 'none';
                 });
-                startGameButton.style.display = isAdmin ? 'block' : 'none';
-                //newGameButton.style.display = isAdmin ? 'block' : 'none';
+                startGameButton.style.display = isAdmin && players.length > 1 ? 'block' : 'none';
                 restartButton.style.display = isAdmin ? 'block' : 'none';
                 document.getElementById('backToConfig').style.display = isAdmin ? 'block' : 'none';
+
+                if (!isAdmin && !gameStarted) {
+                    showAdminView();
+                }
             }
 
             function createPlayerElement(player, index) {
@@ -433,7 +434,7 @@
                 const adminName = playerNameInput.value.trim();
                 if (adminName) {
                     const admin = { name: adminName, active: true, status: 'Administrador' };
-                    players.push(admin);
+                    players = [admin]; // Reinicie a lista de jogadores
                     gameCode = generateGameCode();
                     localStorage.setItem(`bingoAdmin_${gameCode}`, 'true');
                     isAdmin = true;
@@ -443,6 +444,17 @@
                     saveGameState();
                 }
             });
+
+            function joinGame() {
+                const playerName = playerNameInput.value.trim();
+                if (playerName) {
+                    const newPlayer = { name: playerName, active: true, status: 'Jogador' };
+                    players.push(newPlayer);
+                    updatePlayerList();
+                    updateRankingTable();
+                    saveGameState();
+                }
+            }
 
             playerNameInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
@@ -647,6 +659,15 @@
                 shareLinkDiv.style.display = 'block';
                 document.getElementById('rankingTable').style.display = 'block';
                 updateStartGameButtonVisibility();
+
+                if (!isAdmin) {
+                    document.querySelector('.player-entry').style.display = 'block';
+                    document.querySelector('.player-entry label').textContent = 'Seu Nome:';
+                    createGameButton.textContent = 'Entrar no Jogo';
+                    createGameButton.removeEventListener('click', createGameButton.clickHandler);
+                    createGameButton.clickHandler = joinGame;
+                    createGameButton.addEventListener('click', createGameButton.clickHandler);
+                }
             }
 
             function updateStartGameButtonVisibility() {
