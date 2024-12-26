@@ -329,6 +329,7 @@
             let gameCount = 0;
             let winners = [];
             let gameCode = '';
+            let isAdmin = false;
 
             function generateGameCode() {
                 return Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -342,8 +343,7 @@
                     winners,
                     bingoName: document.getElementById('bingoName').value
                 };
-                localStorage.setItem('bingoGameState', JSON.stringify(gameState));
-                gameCode = generateGameCode();
+                localStorage.setItem(`bingoGameState_${gameCode}`, JSON.stringify(gameState));
                 const shareUrl = `${window.location.origin}${window.location.pathname}?game=${gameCode}`;
                 shareLinkDiv.innerHTML = `<p>Compartilhe este link: <a href="${shareUrl}" target="_blank">${shareUrl}</a></p>`;
                 history.pushState(null, '', `?game=${gameCode}`);
@@ -354,7 +354,7 @@
                 const loadedGameCode = urlParams.get('game');
                 if (loadedGameCode) {
                     gameCode = loadedGameCode;
-                    const savedState = localStorage.getItem('bingoGameState');
+                    const savedState = localStorage.getItem(`bingoGameState_${gameCode}`);
                     if (savedState) {
                         const gameState = JSON.parse(savedState);
                         players = gameState.players;
@@ -368,7 +368,25 @@
                             showCardLinks();
                         }
                     }
+                    isAdmin = localStorage.getItem(`bingoAdmin_${gameCode}`) === 'true';
+                } else {
+                    gameCode = generateGameCode();
+                    localStorage.setItem(`bingoAdmin_${gameCode}`, 'true');
+                    isAdmin = true;
                 }
+                updateUIForRole();
+            }
+
+            function updateUIForRole() {
+                const adminElements = document.querySelectorAll('.admin-only');
+                adminElements.forEach(el => {
+                    el.style.display = isAdmin ? 'block' : 'none';
+                });
+                document.getElementById('bingoForm').style.display = isAdmin ? 'block' : 'none';
+                addPlayerButton.style.display = isAdmin ? 'block' : 'none';
+                newGameButton.style.display = isAdmin ? 'block' : 'none';
+                restartButton.style.display = isAdmin ? 'block' : 'none';
+                document.getElementById('backToConfig').style.display = isAdmin ? 'block' : 'none';
             }
 
             function createPlayerElement(name, index) {
@@ -377,22 +395,24 @@
                 playerDiv.innerHTML = `
                     <span class="player-name">${name}</span>
                     <div class="player-actions">
-                        <button type="button" class="toggle-btn">Ativar/Desativar</button>
-                        <button type="button" class="remove-btn">Remover</button>
+                        <button type="button" class="toggle-btn admin-only">Ativar/Desativar</button>
+                        <button type="button" class="remove-btn admin-only">Remover</button>
                     </div>
                 `;
 
-                playerDiv.querySelector('.remove-btn').addEventListener('click', () => {
-                    players.splice(index, 1);
-                    updatePlayerList();
-                    saveGameState();
-                });
+                if (isAdmin) {
+                    playerDiv.querySelector('.remove-btn').addEventListener('click', () => {
+                        players.splice(index, 1);
+                        updatePlayerList();
+                        saveGameState();
+                    });
 
-                playerDiv.querySelector('.toggle-btn').addEventListener('click', () => {
-                    players[index].active = !players[index].active;
-                    updatePlayerList();
-                    saveGameState();
-                });
+                    playerDiv.querySelector('.toggle-btn').addEventListener('click', () => {
+                        players[index].active = !players[index].active;
+                        updatePlayerList();
+                        saveGameState();
+                    });
+                }
 
                 return playerDiv;
             }
@@ -406,6 +426,7 @@
                     }
                     playerList.appendChild(playerElement);
                 });
+                updateUIForRole();
             }
 
             addPlayerButton.addEventListener('click', () => {
@@ -504,15 +525,15 @@
                 cardsContainer.appendChild(winnersTable);
 
                 document.getElementById('cardLinks').style.display = 'none';
-                document.getElementById('restartButton').style.display = 'none';
-                document.getElementById('backToConfig').style.display = 'none';
+                document.getElementById('restartButton').style.display = isAdmin ? 'block' : 'none';
+                document.getElementById('backToConfig').style.display = isAdmin ? 'block' : 'none';
                 
                 const backButton = document.createElement('button');
                 backButton.textContent = 'Voltar para Lista de Jogadores';
                 backButton.addEventListener('click', () => {
                     document.getElementById('cardLinks').style.display = 'flex';
-                    document.getElementById('restartButton').style.display = 'block';
-                    document.getElementById('backToConfig').style.display = 'block';
+                    document.getElementById('restartButton').style.display = isAdmin ? 'block' : 'none';
+                    document.getElementById('backToConfig').style.display = isAdmin ? 'block' : 'none';
                     gameContainer.style.display = 'none';
                     cardsContainer.innerHTML = '';
                     backButton.remove();
@@ -564,8 +585,8 @@
             function showCardLinks() {
                 cardLinks.style.display = 'flex';
                 cardsContainer.innerHTML = '';
-                document.getElementById('restartButton').style.display = 'block';
-                document.getElementById('backToConfig').style.display = 'block';
+                document.getElementById('restartButton').style.display = isAdmin ? 'block' : 'none';
+                document.getElementById('backToConfig').style.display = isAdmin ? 'block' : 'none';
             }
 
             restartButton.addEventListener('click', () => {
