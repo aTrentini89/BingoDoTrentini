@@ -12,14 +12,15 @@ const io = socketIo(server, {
   }
 });
 
-// Serve os arquivos estáticos da pasta atual
-app.use(express.static(__dirname));
+// Serve arquivos estáticos da pasta public
+app.use(express.static(path.join(__dirname, 'public')));
 
-// Adiciona rota básica para teste
-app.get('/health', (req, res) => {
-  res.send('Server is running');
+// Rota para a página principal
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Armazena os jogos ativos
 const games = new Map();
 
 io.on('connection', (socket) => {
@@ -49,7 +50,7 @@ io.on('connection', (socket) => {
       socket.join(gameCode);
       io.to(gameCode).emit('gameState', game);
     } else {
-      socket.emit('error', { message: 'Game not found' });
+      socket.emit('error', { message: 'Jogo não encontrado' });
     }
   });
 
@@ -66,5 +67,8 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`http://localhost:${PORT}`);
+});
 

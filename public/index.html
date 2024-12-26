@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerador de Bingo Otimizado</title>
+    <link rel="stylesheet" href="/styles/main.css">
+</head>
+<body>
+    <div class="container" id="gameConfig">
+        <h1>Gerador de Bingo Otimizado</h1>
+        <div id="bingoInfo">
+            <h2 id="bingoNameDisplay"></h2>
+        </div>
+        <form id="bingoForm">
+            <div id="adminSetup" style="display: none;">
+                <div class="form-group">
+                    <label for="bingoName">Nome do Bingo:</label>
+                    <input type="text" id="bingoName" required>
+                </div>
+                <div class="player-entry">
+                    <div class="form-group">
+                        <label for="playerName">Nome do Administrador:</label>
+                        <input type="text" id="playerName">
+                        <button type="button" id="createGame">Criar Jogo</button>
+                    </div>
+                </div>
+            </div>
+            <div id="playerSetup" style="display: none;">
+                <div class="player-entry">
+                    <div class="form-group">
+                        <label for="playerName">Seu Nome:</label>
+                        <input type="text" id="newPlayerName">
+                        <button type="button" id="joinGame">Entrar no Jogo</button>
+                    </div>
+                </div>
+            </div>
+            <div class="player-list" id="playerList"></div>
+            <button type="submit" id="startGameButton" style="display: none;">Iniciar Jogo</button>
+        </form>
+        <div id="errorMessage" class="error-message"></div>
+        <div id="shareLink" style="margin-top: 20px; display: none;"></div>
+        <h2>Ranking</h2>
+        <table id="rankingTable">
+            <thead>
+                <tr>
+                    <th>Posição</th>
+                    <th>Jogador</th>
+                    <th>Vitórias</th>
+                    <th>Fichas Ganhas</th>
+                </tr>
+            </thead>
+            <tbody id="rankingTableBody"></tbody>
+        </table>
+    </div>
+    <div id="gamePlay" style="display: none;">
+        <div id="cardLinks"></div>
+        <div id="gameContainer">
+            <div id="cardsContainer"></div>
+        </div>
+        <button id="restartButton">Reiniciar Jogo</button>
+        <button id="backToConfig">Voltar para Configuração</button>
+        <div id="winnerSelection">
+            <h2>Selecione o Vencedor</h2>
+            <div id="winnerButtons"></div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>
+
