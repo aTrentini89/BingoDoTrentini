@@ -287,6 +287,7 @@
         </form>
         <button id="newGameButton">Novo Jogo</button>
         <div id="errorMessage" class="error-message"></div>
+        <div id="shareLink" style="margin-top: 20px;"></div>
         <table id="winnersTable">
             <thead>
                 <tr>
@@ -322,10 +323,53 @@
             const cardLinks = document.getElementById('cardLinks');
             const restartButton = document.getElementById('restartButton');
             const newGameButton = document.getElementById('newGameButton');
+            const shareLinkDiv = document.getElementById('shareLink');
             let players = [];
             let generatedCards = [];
             let gameCount = 0;
             let winners = [];
+            let gameCode = '';
+
+            function generateGameCode() {
+                return Math.random().toString(36).substring(2, 8).toUpperCase();
+            }
+
+            function saveGameState() {
+                const gameState = {
+                    players,
+                    generatedCards,
+                    gameCount,
+                    winners,
+                    bingoName: document.getElementById('bingoName').value
+                };
+                localStorage.setItem('bingoGameState', JSON.stringify(gameState));
+                gameCode = generateGameCode();
+                const shareUrl = `${window.location.origin}${window.location.pathname}?game=${gameCode}`;
+                shareLinkDiv.innerHTML = `<p>Compartilhe este link: <a href="${shareUrl}" target="_blank">${shareUrl}</a></p>`;
+                history.pushState(null, '', `?game=${gameCode}`);
+            }
+
+            function loadGameState() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const loadedGameCode = urlParams.get('game');
+                if (loadedGameCode) {
+                    gameCode = loadedGameCode;
+                    const savedState = localStorage.getItem('bingoGameState');
+                    if (savedState) {
+                        const gameState = JSON.parse(savedState);
+                        players = gameState.players;
+                        generatedCards = gameState.generatedCards;
+                        gameCount = gameState.gameCount;
+                        winners = gameState.winners;
+                        document.getElementById('bingoName').value = gameState.bingoName;
+                        updatePlayerList();
+                        updateWinnersTable();
+                        if (generatedCards.length > 0) {
+                            showCardLinks();
+                        }
+                    }
+                }
+            }
 
             function createPlayerElement(name, index) {
                 const playerDiv = document.createElement('div');
@@ -341,11 +385,13 @@
                 playerDiv.querySelector('.remove-btn').addEventListener('click', () => {
                     players.splice(index, 1);
                     updatePlayerList();
+                    saveGameState();
                 });
 
                 playerDiv.querySelector('.toggle-btn').addEventListener('click', () => {
                     players[index].active = !players[index].active;
                     updatePlayerList();
+                    saveGameState();
                 });
 
                 return playerDiv;
@@ -369,6 +415,7 @@
                     updatePlayerList();
                     playerNameInput.value = '';
                     playerNameInput.focus();
+                    saveGameState();
                 }
             });
 
@@ -390,19 +437,15 @@
 
             function generateCard() {
                 const card = [
-                    generateColumnNumbers(1, 15, 5),    // B (1-15)
-                    generateColumnNumbers(16, 30, 5),   // I (16-30)
-                    generateColumnNumbers(31, 45, 5),   // N (31-45)
-                    generateColumnNumbers(46, 60, 5),   // G (46-60)
-                    generateColumnNumbers(61, 75, 5)    // O (61-75)
+                    generateColumnNumbers(1, 15, 5),
+                    generateColumnNumbers(16, 30, 5),
+                    generateColumnNumbers(31, 45, 5),
+                    generateColumnNumbers(46, 60, 5),
+                    generateColumnNumbers(61, 75, 5)
                 ];
 
-                // Ordenar os números em cada coluna
                 card.forEach(column => column.sort((a, b) => a - b));
-
-                // Adicionar a estrela no centro
                 card[2][2] = '★';
-
                 return card;
             }
 
@@ -425,7 +468,6 @@
                 const numbers = document.createElement('div');
                 numbers.className = 'bingo-numbers';
 
-                // Criar grid de números 5x5
                 for (let row = 0; row < 5; row++) {
                     for (let col = 0; col < 5; col++) {
                         const number = card[col][row];
@@ -489,10 +531,8 @@
                     return;
                 }
 
-                // Gerar cartelas apenas para jogadores ativos
                 generatedCards = players.filter(p => p.active).map(() => generateCard());
 
-                // Criar links para as cartelas
                 cardLinks.innerHTML = '';
                 players.forEach((player, index) => {
                     if (player.active) {
@@ -513,6 +553,7 @@
                 document.getElementById('gameContainer').style.display = 'none';
                 showCardLinks();
                 updateWinnersTable();
+                saveGameState();
             }
 
             form.addEventListener('submit', (e) => {
@@ -548,6 +589,7 @@
                 document.getElementById('winnerSelection').style.display = 'none';
                 generateCards();
                 showCardLinks();
+                saveGameState();
             }
 
             function updateWinnersTable() {
@@ -603,7 +645,10 @@
                 updateWinnersTable();
                 document.getElementById('bingoName').value = '';
                 errorMessage.textContent = '';
+                saveGameState();
             });
+
+            loadGameState();
         });
     </script>
 </body>
