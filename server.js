@@ -16,8 +16,16 @@ const io = socketIo(server, {
     },
     transports: ['websocket', 'polling'],
     path: '/socket.io/',
-    debug: true
+    pingTimeout: 60000,
+    pingInterval: 25000,
+    upgradeTimeout: 30000,
+    agent: false,
+    reconnection: true,
+    rejectUnauthorized: false
 });
+
+// Adicione este log após a configuração do Socket.IO
+console.log('Socket.IO configurado com as seguintes opções:', io.opts);
 
 // Configuração para servir arquivos estáticos
 app.use(express.static('public'));
@@ -34,7 +42,7 @@ app.use((req, res, next) => {
 const games = new Map();
 
 io.on('connection', (socket) => {
-    console.log('New client connected:', socket.id);
+    console.log('Novo cliente conectado:', socket.id);
 
     // Envia confirmação de conexão
     socket.emit('connected', { status: 'ok', socketId: socket.id });
@@ -112,8 +120,8 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('disconnect', () => {
-        console.log('Client disconnected:', socket.id);
+    socket.on('disconnect', (reason) => {
+        console.log('Cliente desconectado:', socket.id, 'Razão:', reason);
     });
 });
 

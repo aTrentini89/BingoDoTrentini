@@ -2,11 +2,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const socket = io({
         transports: ['websocket', 'polling'],
         reconnection: true,
-        reconnectionAttempts: 5,
+        reconnectionAttempts: Infinity,
         reconnectionDelay: 1000,
-        timeout: 10000
+        reconnectionDelayMax: 5000,
+        timeout: 20000,
+        autoConnect: false
     });
     
+    socket.connect();
+
     let socketConnected = false;
     const errorMessage = document.getElementById('errorMessage');
     const createGameButton = document.getElementById('createGame');
@@ -55,11 +59,23 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('connect_error', (error) => {
-        console.error('Connection error:', error);
+        console.error('Erro de conexão:', error);
         socketConnected = false;
         createGameButton.disabled = true;
         errorMessage.style.color = '#ff3e3e';
-        errorMessage.textContent = 'Erro de conexão com o servidor. Por favor, recarregue a página.';
+        errorMessage.textContent = 'Erro de conexão com o servidor. Tentando reconectar...';
+    });
+
+    socket.on('reconnect_attempt', (attemptNumber) => {
+        console.log('Tentativa de reconexão:', attemptNumber);
+    });
+
+    socket.on('reconnect', (attemptNumber) => {
+        console.log('Reconectado após', attemptNumber, 'tentativas');
+        errorMessage.textContent = 'Conexão restabelecida!';
+        setTimeout(() => {
+            errorMessage.textContent = '';
+        }, 3000);
     });
 
     socket.on('error', (error) => {
