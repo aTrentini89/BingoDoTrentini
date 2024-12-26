@@ -265,17 +265,17 @@
             </div>
             <div class="player-entry">
                 <div class="form-group">
-                    <label for="playerName">Seu Nome:</label>
+                    <label for="playerName">Nome do Administrador:</label>
                     <input type="text" id="playerName">
-                    <button type="button" id="joinGame">Entrar no Jogo</button>
+                    <button type="button" id="createGame">Criar Jogo</button>
                 </div>
             </div>
             <div class="player-list" id="playerList"></div>
             <button type="submit" id="startGameButton" style="display: none;">Iniciar Jogo</button>
         </form>
-        <button id="newGameButton" style="display: none;">Novo Jogo</button>
+        <!--<button id="newGameButton" style="display: none;">Novo Jogo</button>-->
         <div id="errorMessage" class="error-message"></div>
-        <div id="shareLink" style="margin-top: 20px;"></div>
+        <div id="shareLink" style="margin-top: 20px; display: none;"></div>
         <h2>Ranking</h2>
         <table id="rankingTable">
             <thead>
@@ -308,11 +308,10 @@
             const cardsContainer = document.getElementById('cardsContainer');
             const errorMessage = document.getElementById('errorMessage');
             const playerNameInput = document.getElementById('playerName');
-            const joinGameButton = document.getElementById('joinGame');
+            const createGameButton = document.getElementById('createGame');
             const playerList = document.getElementById('playerList');
             const cardLinks = document.getElementById('cardLinks');
             const restartButton = document.getElementById('restartButton');
-            const newGameButton = document.getElementById('newGameButton');
             const startGameButton = document.getElementById('startGameButton');
             const shareLinkDiv = document.getElementById('shareLink');
             let players = [];
@@ -380,7 +379,7 @@
                     el.style.display = isAdmin ? 'block' : 'none';
                 });
                 startGameButton.style.display = isAdmin ? 'block' : 'none';
-                newGameButton.style.display = isAdmin ? 'block' : 'none';
+                //newGameButton.style.display = isAdmin ? 'block' : 'none';
                 restartButton.style.display = isAdmin ? 'block' : 'none';
                 document.getElementById('backToConfig').style.display = isAdmin ? 'block' : 'none';
             }
@@ -425,17 +424,22 @@
                     }
                     playerList.appendChild(playerElement);
                 });
+                updateStartGameButtonVisibility();
                 updateUIForRole();
+                updateRankingTable();
             }
 
-            joinGameButton.addEventListener('click', () => {
-                const playerName = playerNameInput.value.trim();
-                if (playerName) {
-                    const newPlayer = { name: playerName, active: true, status: 'Aguardando início' };
-                    players.push(newPlayer);
+            createGameButton.addEventListener('click', () => {
+                const adminName = playerNameInput.value.trim();
+                if (adminName) {
+                    const admin = { name: adminName, active: true, status: 'Administrador' };
+                    players.push(admin);
+                    gameCode = generateGameCode();
+                    localStorage.setItem(`bingoAdmin_${gameCode}`, 'true');
+                    isAdmin = true;
                     updatePlayerList();
-                    playerNameInput.value = '';
-                    playerNameInput.focus();
+                    updateRankingTable();
+                    showAdminView();
                     saveGameState();
                 }
             });
@@ -443,7 +447,7 @@
             playerNameInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
                     e.preventDefault();
-                    joinGameButton.click();
+                    createGameButton.click();
                 }
             });
 
@@ -638,18 +642,17 @@
                 cardsContainer.innerHTML = '';
             });
 
-            newGameButton.addEventListener('click', () => {
-                players = [];
-                generatedCards = [];
-                gameCount = 0;
-                winners = [];
-                gameStarted = false;
-                updatePlayerList();
-                updateRankingTable();
-                document.getElementById('bingoName').value = '';
-                errorMessage.textContent = '';
-                saveGameState();
-            });
+            function showAdminView() {
+                document.querySelector('.player-entry').style.display = 'none';
+                shareLinkDiv.style.display = 'block';
+                document.getElementById('rankingTable').style.display = 'block';
+                updateStartGameButtonVisibility();
+            }
+
+            function updateStartGameButtonVisibility() {
+                startGameButton.style.display = (players.length > 1) ? 'block' : 'none';
+            }
+
 
             loadGameState();
         });
