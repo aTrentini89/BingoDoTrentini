@@ -258,22 +258,35 @@
 <body>
     <div class="container" id="gameConfig">
         <h1>Gerador de Bingo Otimizado</h1>
+        <div id="bingoInfo">
+            <h2 id="bingoNameDisplay"></h2>
+        </div>
         <form id="bingoForm">
-            <div class="form-group">
-                <label for="bingoName">Nome do Bingo:</label>
-                <input type="text" id="bingoName" required>
-            </div>
-            <div class="player-entry">
+            <div id="adminSetup" style="display: none;">
                 <div class="form-group">
-                    <label for="playerName">Nome do Administrador:</label>
-                    <input type="text" id="playerName">
-                    <button type="button" id="createGame">Criar Jogo</button>
+                    <label for="bingoName">Nome do Bingo:</label>
+                    <input type="text" id="bingoName" required>
+                </div>
+                <div class="player-entry">
+                    <div class="form-group">
+                        <label for="playerName">Nome do Administrador:</label>
+                        <input type="text" id="playerName">
+                        <button type="button" id="createGame">Criar Jogo</button>
+                    </div>
+                </div>
+            </div>
+            <div id="playerSetup" style="display: none;">
+                <div class="player-entry">
+                    <div class="form-group">
+                        <label for="playerName">Seu Nome:</label>
+                        <input type="text" id="newPlayerName">
+                        <button type="button" id="joinGame">Entrar no Jogo</button>
+                    </div>
                 </div>
             </div>
             <div class="player-list" id="playerList"></div>
             <button type="submit" id="startGameButton" style="display: none;">Iniciar Jogo</button>
         </form>
-        <!--<button id="newGameButton" style="display: none;">Novo Jogo</button>-->
         <div id="errorMessage" class="error-message"></div>
         <div id="shareLink" style="margin-top: 20px; display: none;"></div>
         <h2>Ranking</h2>
@@ -322,6 +335,8 @@
             let isAdmin = false;
             let openCardIndex = -1;
             let gameStarted = false;
+            let gameState = null;
+            let pollInterval = null;
 
             function generateGameCode() {
                 return Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -432,33 +447,47 @@
             }
 
             createGameButton.addEventListener('click', () => {
-                const adminName = playerNameInput.value.trim();
-                if (adminName) {
-                    const admin = { name: adminName, active: true, status: 'Administrador' };
-                    players = [admin]; // Reinicie a lista de jogadores
-                    gameCode = generateGameCode();
-                    localStorage.setItem(`bingoAdmin_${gameCode}`, 'true');
-                    isAdmin = true;
-                    updatePlayerList();
-                    updateRankingTable();
-                    showAdminView();
-                    saveGameState();
+                const bingoName = document.getElementById('bingoName').value.trim();
+                const adminName = document.getElementById('playerName').value.trim();
+
+                if (!bingoName || !adminName) {
+                    errorMessage.textContent = 'Por favor, preencha todos os campos.';
+                    return;
                 }
+
+                const admin = { name: adminName, active: true, status: 'Administrador' };
+                players = [admin];
+                gameState = {
+                    bingoName,
+                    players,
+                    generatedCards: [],
+                    gameCount: 0,
+                    winners: [],
+                    gameStarted: false
+                };
+
+                saveGameState();
+                document.getElementById('adminSetup').style.display = 'none';
+                document.getElementById('shareLink').style.display = 'block';
+                updatePlayerList();
+                updateRankingTable();
             });
 
             function joinGame() {
-                const playerName = playerNameInput.value.trim();
+                const playerName = document.getElementById('newPlayerName').value.trim();
                 if (playerName && !players.some(p => p.name === playerName)) {
                     const newPlayer = { name: playerName, active: true, status: 'Jogador' };
                     players.push(newPlayer);
                     updatePlayerList();
                     updateRankingTable();
                     saveGameState();
-                    document.querySelector('.player-entry').style.display = 'none';
+                    document.getElementById('playerSetup').style.display = 'none';
                 } else if (players.some(p => p.name === playerName)) {
                     errorMessage.textContent = 'Este nome já está em uso. Por favor, escolha outro.';
                 }
             }
+
+            document.getElementById('joinGame').addEventListener('click', joinGame);
 
             playerNameInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
@@ -466,6 +495,7 @@
                     createGameButton.click();
                 }
             });
+
 
             function generateColumnNumbers(min, max, count) {
                 const numbers = [];
@@ -659,30 +689,19 @@
             });
 
             function showPlayerView() {
-                document.querySelector('.player-entry').style.display = 'block';
-                document.querySelector('.player-entry label').textContent = 'Seu Nome:';
-                createGameButton.textContent = 'Entrar no Jogo';
-                createGameButton.removeEventListener('click', createGameButton.clickHandler);
-                createGameButton.clickHandler = joinGame;
-                createGameButton.addEventListener('click', createGameButton.clickHandler);
+                document.getElementById('adminSetup').style.display = 'none';
+                document.getElementById('playerSetup').style.display = 'block';
+                document.getElementById('newPlayerName').value = '';
                 shareLinkDiv.style.display = 'none';
                 document.getElementById('rankingTable').style.display = 'block';
             }
 
             function showAdminView() {
-                document.querySelector('.player-entry').style.display = 'none';
+                document.getElementById('adminSetup').style.display = 'block';
+                document.getElementById('playerSetup').style.display = 'none';
                 shareLinkDiv.style.display = 'block';
                 document.getElementById('rankingTable').style.display = 'block';
                 updateStartGameButtonVisibility();
-
-                if (!isAdmin) {
-                    document.querySelector('.player-entry').style.display = 'block';
-                    document.querySelector('.player-entry label').textContent = 'Seu Nome:';
-                    createGameButton.textContent = 'Entrar no Jogo';
-                    createGameButton.removeEventListener('click', createGameButton.clickHandler);
-                    createGameButton.clickHandler = joinGame;
-                    createGameButton.addEventListener('click', createGameButton.clickHandler);
-                }
             }
 
             function updateStartGameButtonVisibility() {
@@ -690,29 +709,85 @@
             }
 
             function startGameStatePolling() {
-                setInterval(() => {
-                    if (!isAdmin) {
-                        const savedState = localStorage.getItem(`bingoGameState_${gameCode}`);
-                        if (savedState) {
-                            const gameState = JSON.parse(savedState);
-                            if (JSON.stringify(gameState.players) !== JSON.stringify(players)) {
-                                players = gameState.players;
-                                updatePlayerList();
-                                updateRankingTable();
-                            }
-                            if (gameState.gameStarted && !gameStarted) {
-                                gameStarted = true;
+                if (pollInterval) {
+                    clearInterval(pollInterval);
+                }
+
+                pollInterval = setInterval(() => {
+                    const savedState = localStorage.getItem(`bingoGameState_${gameCode}`);
+                    if (savedState) {
+                        const newState = JSON.parse(savedState);
+                        if (JSON.stringify(newState) !== JSON.stringify(gameState)) {
+                            gameState = newState;
+                            players = newState.players;
+                            generatedCards = newState.generatedCards;
+                            gameCount = newState.gameCount;
+                            winners = newState.winners;
+                            gameStarted = newState.gameStarted;
+
+                            updatePlayerList();
+                            updateRankingTable();
+
+                            if (gameStarted && document.getElementById('gameConfig').style.display !== 'none') {
                                 document.getElementById('gameConfig').style.display = 'none';
                                 document.getElementById('gamePlay').style.display = 'block';
                                 showCardLinks();
                             }
                         }
                     }
-                }, 5000); // Atualiza a cada 5 segundos
+                }, 1000); // Atualiza a cada segundo
             }
 
-            loadGameState();
-            startGameStatePolling();
+            function initializeGame() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const loadedGameCode = urlParams.get('game');
+
+                if (loadedGameCode) {
+                    // Jogador entrando em um jogo existente
+                    gameCode = loadedGameCode;
+                    isAdmin = localStorage.getItem(`bingoAdmin_${gameCode}`) === 'true';
+                    document.getElementById('adminSetup').style.display = 'none';
+                    document.getElementById('playerSetup').style.display = 'block';
+                    loadAndDisplayGameState();
+                    startGameStatePolling();
+                } else {
+                    // Novo jogo sendo criado
+                    gameCode = generateGameCode();
+                    localStorage.setItem(`bingoAdmin_${gameCode}`, 'true');
+                    isAdmin = true;
+                    document.getElementById('adminSetup').style.display = 'block';
+                    document.getElementById('playerSetup').style.display = 'none';
+                }
+            }
+
+            function loadAndDisplayGameState() {
+                const savedState = localStorage.getItem(`bingoGameState_${gameCode}`);
+                if (savedState) {
+                    gameState = JSON.parse(savedState);
+                    players = gameState.players;
+                    generatedCards = gameState.generatedCards;
+                    gameCount = gameState.gameCount;
+                    winners = gameState.winners;
+                    gameStarted = gameState.gameStarted;
+
+                    // Atualiza o nome do bingo na interface
+                    const bingoNameDisplay = document.getElementById('bingoNameDisplay');
+                    bingoNameDisplay.textContent = gameState.bingoName;
+
+                    // Atualiza a lista de jogadores e o ranking
+                    updatePlayerList();
+                    updateRankingTable();
+
+                    if (gameStarted) {
+                        document.getElementById('gameConfig').style.display = 'none';
+                        document.getElementById('gamePlay').style.display = 'block';
+                        showCardLinks();
+                    }
+                }
+            }
+
+
+            initializeGame();
         });
     </script>
 </body>
