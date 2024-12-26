@@ -330,6 +330,7 @@
             let winners = [];
             let gameCode = '';
             let isAdmin = false;
+            let openCardIndex = -1; // Added variable to track open card
 
             function generateGameCode() {
                 return Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -365,6 +366,8 @@
                         updatePlayerList();
                         updateWinnersTable();
                         if (generatedCards.length > 0) {
+                            document.getElementById('gameConfig').style.display = 'none';
+                            document.getElementById('gamePlay').style.display = 'block';
                             showCardLinks();
                         }
                     }
@@ -510,37 +513,22 @@
             }
 
             function showPlayerCard(index) {
-                const gameContainer = document.getElementById('gameContainer');
-                gameContainer.style.display = 'flex';
-                
-                const cardsContainer = document.getElementById('cardsContainer');
-                cardsContainer.innerHTML = '';
-                const card = generatedCards[index];
-                const playerName = players[index].name;
-                const cardElement = displayCard(card, playerName, index, players.filter(p => p.active).length);
-                cardsContainer.appendChild(cardElement);
-                
-                const winnersTable = document.getElementById('winnersTable').cloneNode(true);
-                winnersTable.style.marginTop = '20px';
-                cardsContainer.appendChild(winnersTable);
+                const cardElement = document.getElementById(`card-${index}`);
 
-                document.getElementById('cardLinks').style.display = 'none';
-                document.getElementById('restartButton').style.display = isAdmin ? 'block' : 'none';
-                document.getElementById('backToConfig').style.display = isAdmin ? 'block' : 'none';
-                
-                const backButton = document.createElement('button');
-                backButton.textContent = 'Voltar para Lista de Jogadores';
-                backButton.addEventListener('click', () => {
-                    document.getElementById('cardLinks').style.display = 'flex';
-                    document.getElementById('restartButton').style.display = isAdmin ? 'block' : 'none';
-                    document.getElementById('backToConfig').style.display = isAdmin ? 'block' : 'none';
-                    gameContainer.style.display = 'none';
-                    cardsContainer.innerHTML = '';
-                    backButton.remove();
-                });
-                cardsContainer.appendChild(backButton);
-                
-                updateWinnersTable();
+                if (openCardIndex === index) {
+                    // Fechar a cartela se já estiver aberta
+                    cardElement.style.display = 'none';
+                    openCardIndex = -1;
+                } else {
+                    // Fechar a cartela anteriormente aberta
+                    if (openCardIndex !== -1) {
+                        document.getElementById(`card-${openCardIndex}`).style.display = 'none';
+                    }
+
+                    // Abrir a nova cartela
+                    cardElement.style.display = 'block';
+                    openCardIndex = index;
+                }
             }
 
             function generateCards() {
@@ -571,7 +559,6 @@
                 errorMessage.textContent = '';
                 document.getElementById('gameConfig').style.display = 'none';
                 document.getElementById('gamePlay').style.display = 'block';
-                document.getElementById('gameContainer').style.display = 'none';
                 showCardLinks();
                 updateWinnersTable();
                 saveGameState();
@@ -587,6 +574,20 @@
                 cardsContainer.innerHTML = '';
                 document.getElementById('restartButton').style.display = isAdmin ? 'block' : 'none';
                 document.getElementById('backToConfig').style.display = isAdmin ? 'block' : 'none';
+
+                // Exibir o placar
+                const winnersTable = document.getElementById('winnersTable').cloneNode(true);
+                winnersTable.style.marginTop = '20px';
+                cardLinks.appendChild(winnersTable);
+
+                // Exibir as cartelas geradas
+                players.forEach((player, index) => {
+                    if (player.active) {
+                        const cardElement = displayCard(generatedCards[index], player.name, index, players.filter(p => p.active).length);
+                        cardElement.style.display = 'none'; // Inicialmente oculto
+                        cardsContainer.appendChild(cardElement);
+                    }
+                });
             }
 
             restartButton.addEventListener('click', () => {
@@ -618,21 +619,21 @@
                 const playerTableBody = document.querySelector('#gameContainer #winnersTable tbody');
                 tableBody.innerHTML = '';
                 if (playerTableBody) playerTableBody.innerHTML = '';
-                
+
                 const playerWins = {};
                 const playerChips = {};
                 players.forEach(player => {
                     playerWins[player.name] = 0;
                     playerChips[player.name] = 0;
                 });
-                
+
                 winners.forEach(winner => {
                     if (playerWins.hasOwnProperty(winner.name)) {
                         playerWins[winner.name]++;
                         playerChips[winner.name] += winner.playerCount;
                     }
                 });
-                
+
                 Object.entries(playerWins).forEach(([playerName, wins]) => {
                     const row = tableBody.insertRow();
                     const cellName = row.insertCell(0);
