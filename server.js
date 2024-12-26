@@ -6,7 +6,7 @@ const path = require('path');
 const app = express();
 const server = http.createServer(app);
 
-// Configuração do Socket.io com opções de CORS mais permissivas
+// Configuração do Socket.io com debugging
 const io = socketIo(server, {
     cors: {
         origin: "*",
@@ -14,8 +14,9 @@ const io = socketIo(server, {
         allowedHeaders: ["*"],
         credentials: true
     },
-    transports: ['websocket', 'polling'], // Adiciona suporte a polling como fallback
-    path: '/socket.io/' // Garante que o path está correto
+    transports: ['websocket', 'polling'],
+    path: '/socket.io/',
+    debug: true
 });
 
 // Configuração para servir arquivos estáticos
@@ -23,21 +24,11 @@ app.use(express.static('public'));
 app.use('/styles', express.static(path.join(__dirname, 'src/styles')));
 app.use('/js', express.static(path.join(__dirname, 'src/js')));
 
-// Adiciona headers CORS para todas as rotas
+// Adiciona headers CORS
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
     next();
-});
-
-// Rota principal
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Rota de verificação de saúde
-app.get('/health', (req, res) => {
-    res.send('Server is running');
 });
 
 const games = new Map();
@@ -45,57 +36,89 @@ const games = new Map();
 io.on('connection', (socket) => {
     console.log('New client connected:', socket.id);
 
-    // Envia confirmação de conexão para o cliente
-    socket.emit('connected', { status: 'ok' });
+    // Envia confirmação de conexão
+    socket.emit('connected', { status: 'ok', socketId: socket.id });
 
     socket.on('createGame', (data) => {
-        console.log('Creating game:', data);
-        const { gameCode, adminName, bingoName } = data;
-        games.set(gameCode, {
-            bingoName,
-            players: [{ name: adminName, active: true, status: 'Administrador' }],
-            generatedCards: [],
-            gameCount: 0,
-            winners: [],
-            gameStarted: false
-        });
-        socket.join(gameCode);
-        io.to(gameCode).emit('gameState', games.get(gameCode));
+        try {
+            console.log('Creating game:', data);
+            const { gameCode, adminName, bingoName } = data;
+            
+            if (!gameCode || !adminName || !bingoName) {
+                socket.emit('error', { message: 'Dados inválidos para criar o jogo' });
+                return;
+            }
+
+            const gameData = {
+                bingoName,
+                players: [{ name: adminName, active: true, status: 'Administrador' }],
+                generatedCards: [],
+                gameCount: 0,
+                winners: [],
+                gameStarted: false
+            };
+
+            games.set(gameCode, gameData);
+            socket.join(gameCode);
+            
+            // Emite o estado inicial do jogo
+            io.to(gameCode).emit('gameState', gameData);
+            
+            // Emite confirmação de criação do jogo
+            socket.emit('gameCreated', { 
+                success: true, 
+                gameCode,
+                message: 'Jogo criado com sucesso!'
+            });
+
+            console.log(`Game ${gameCode} created successfully`);
+        } catch (error) {
+            console.error('Error creating game:', error);
+            socket.emit('error', { message: 'Erro ao criar o jogo: ' + error.message });
+        }
     });
 
     socket.on('joinGame', (data) => {
-        console.log('Player joining game:', data);
-        const { gameCode, playerName } = data;
-        const game = games.get(gameCode);
-        if (game) {
+        try {
+            console.log('Player joining game:', data);
+            const { gameCode, playerName } = data;
+            const game = games.get(gameCode);
+            
+            if (!game) {
+                socket.emit('error', { message: 'Jogo não encontrado' });
+                return;
+            }
+
             game.players.push({ name: playerName, active: true, status: 'Jogador' });
             socket.join(gameCode);
             io.to(gameCode).emit('gameState', game);
-        } else {
-            socket.emit('error', { message: 'Jogo não encontrado' });
+            
+            console.log(`Player ${playerName} joined game ${gameCode}`);
+        } catch (error) {
+            console.error('Error joining game:', error);
+            socket.emit('error', { message: 'Erro ao entrar no jogo: ' + error.message });
         }
     });
 
     socket.on('updateGame', (data) => {
-        console.log('Updating game:', data);
-        const { gameCode, gameState } = data;
-        games.set(gameCode, gameState);
-        io.to(gameCode).emit('gameState', gameState);
+        try {
+            console.log('Updating game:', data);
+            const { gameCode, gameState } = data;
+            games.set(gameCode, gameState);
+            io.to(gameCode).emit('gameState', gameState);
+        } catch (error) {
+            console.error('Error updating game:', error);
+            socket.emit('error', { message: 'Erro ao atualizar o jogo: ' + error.message });
+        }
     });
 
     socket.on('disconnect', () => {
         console.log('Client disconnected:', socket.id);
-    });
-
-    // Adiciona handler para erros
-    socket.on('error', (error) => {
-        console.error('Socket error:', error);
     });
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
-    console.log(`http://localhost:${PORT}`);
 });
 
