@@ -417,7 +417,7 @@
 
                 if (isAdmin) {
                     playerDiv.querySelector('.toggle-btn').addEventListener('click', () => {
-                        players[index].active = !players[index].active;
+                        players[index].active =!players[index].active;
                         updatePlayerList();
                         saveGameState();
                     });
@@ -446,6 +446,85 @@
                 updateRankingTable();
             }
 
+            function generateColumn(min, max, count, usedNumbers) {
+                const available = new Set();
+                for (let i = min; i <= max; i++) {
+                    if (!usedNumbers.has(i)) {
+                        available.add(i);
+                    }
+                }
+                
+                const numbers = Array.from(available);
+                const result = [];
+                
+                while (result.length < count && numbers.length > 0) {
+                    const index = Math.floor(Math.random() * numbers.length);
+                    result.push(numbers[index]);
+                    numbers.splice(index, 1);
+                }
+                
+                return result.sort((a, b) => a - b);
+            }
+
+            function calculateSimilarity(card1, card2) {
+                let commonNumbers = 0;
+                for (let col = 0; col < 5; col++) {
+                    for (let row = 0; row < 5; row++) {
+                        if (card1[col][row] === card2[col][row]) {
+                            commonNumbers++;
+                        }
+                    }
+                }
+                return commonNumbers / 24; // Excluindo espaço central
+            }
+
+            function generateCards(playerCount) {
+                const cards = [];
+                const usedNumbersByColumn = Array(5).fill().map(() => new Set());
+                const maxAttempts = 100;
+                
+                for (let i = 0; i < playerCount; i++) {
+                    let bestCard = null;
+                    let minMaxSimilarity = 1;
+                    
+                    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                        const candidateCard = [
+                            generateColumn(1, 15, 5, usedNumbersByColumn[0]),
+                            generateColumn(16, 30, 5, usedNumbersByColumn[1]),
+                            generateColumn(31, 45, 5, usedNumbersByColumn[2]),
+                            generateColumn(46, 60, 5, usedNumbersByColumn[3]),
+                            generateColumn(61, 75, 5, usedNumbersByColumn[4])
+                        ];
+                        
+                        candidateCard[2][2] = '★';
+                        
+                        let maxSimilarity = 0;
+                        for (const existingCard of cards) {
+                            const similarity = calculateSimilarity(candidateCard, existingCard);
+                            maxSimilarity = Math.max(maxSimilarity, similarity);
+                        }
+                        
+                        if (maxSimilarity < minMaxSimilarity) {
+                            minMaxSimilarity = maxSimilarity;
+                            bestCard = candidateCard;
+                        }
+                    }
+                    
+                    cards.push(bestCard);
+                    
+                    // Atualiza números usados
+                    for (let col = 0; col < 5; col++) {
+                        bestCard[col].forEach(num => {
+                            if (num !== '★') {
+                                usedNumbersByColumn[col].add(num);
+                            }
+                        });
+                    }
+                }
+                
+                return cards;
+            }
+
             createGameButton.addEventListener('click', () => {
                 const bingoName = document.getElementById('bingoName').value.trim();
                 const adminName = document.getElementById('playerName').value.trim();
@@ -471,9 +550,7 @@
                 document.getElementById('shareLink').style.display = 'block';
                 updatePlayerList();
                 updateRankingTable();
-            });
-
-            function joinGame() {
+            });function joinGame() {
                 const playerName = document.getElementById('newPlayerName').value.trim();
                 if (playerName && !players.some(p => p.name === playerName)) {
                     const newPlayer = { name: playerName, active: true, status: 'Jogador' };
@@ -495,30 +572,6 @@
                     createGameButton.click();
                 }
             });
-
-
-            function generateColumnNumbers(min, max, count) {
-                const numbers = [];
-                for (let i = min; i <= max; i++) {
-                    numbers.push(i);
-                }
-                const shuffled = numbers.sort(() => Math.random() - 0.5);
-                return shuffled.slice(0, count);
-            }
-
-            function generateCard() {
-                const card = [
-                    generateColumnNumbers(1, 15, 5),
-                    generateColumnNumbers(16, 30, 5),
-                    generateColumnNumbers(31, 45, 5),
-                    generateColumnNumbers(46, 60, 5),
-                    generateColumnNumbers(61, 75, 5)
-                ];
-
-                card.forEach(column => column.sort((a, b) => a - b));
-                card[2][2] = '★';
-                return card;
-            }
 
             function displayCard(card, playerName, index, totalCards) {
                 const cardElement = document.createElement('div');
@@ -575,7 +628,7 @@
                 }
             }
 
-            function generateCards() {
+            function generateGame() {
                 gameCount++;
                 const bingoName = document.getElementById('bingoName').value;
 
@@ -584,20 +637,19 @@
                     return;
                 }
 
-                generatedCards = players.filter(p => p.active).map(() => generateCard());
+                const activePlayers = players.filter(p => p.active);
+                generatedCards = generateCards(activePlayers.length);
 
                 cardLinks.innerHTML = '';
-                players.forEach((player, index) => {
-                    if (player.active) {
-                        const link = document.createElement('a');
-                        link.href = '#';
-                        link.textContent = player.name;
-                        link.addEventListener('click', (e) => {
-                            e.preventDefault();
-                            showPlayerCard(index);
-                        });
-                        cardLinks.appendChild(link);
-                    }
+                activePlayers.forEach((player, index) => {
+                    const link = document.createElement('a');
+                    link.href = '#';
+                    link.textContent = player.name;
+                    link.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        showPlayerCard(index);
+                    });
+                    cardLinks.appendChild(link);
                 });
 
                 errorMessage.textContent = '';
@@ -612,13 +664,11 @@
             startGameButton.addEventListener('click', (e) => {
                 e.preventDefault();
                 if (players.filter(p => p.active).length > 0) {
-                    generateCards();
+                    generateGame();
                 } else {
                     errorMessage.textContent = 'É necessário ter pelo menos um jogador ativo para iniciar o jogo.';
                 }
-            });
-
-            function showCardLinks() {
+            });function showCardLinks() {
                 cardLinks.style.display = 'flex';
                 cardsContainer.innerHTML = '';
                 document.getElementById('restartButton').style.display = isAdmin ? 'block' : 'none';
@@ -628,12 +678,11 @@
                 rankingTable.style.marginTop = '20px';
                 cardLinks.appendChild(rankingTable);
 
-                players.forEach((player, index) => {
-                    if (player.active) {
-                        const cardElement = displayCard(generatedCards[index], player.name, index, players.filter(p => p.active).length);
-                        cardElement.style.display = 'none';
-                        cardsContainer.appendChild(cardElement);
-                    }
+                const activePlayers = players.filter(p => p.active);
+                activePlayers.forEach((player, index) => {
+                    const cardElement = displayCard(generatedCards[index], player.name, index, activePlayers.length);
+                    cardElement.style.display = 'none';
+                    cardsContainer.appendChild(cardElement);
                 });
             }
 
@@ -656,7 +705,7 @@
                 winners.push({ round: gameCount, name: winnerName, playerCount: activePlayerCount });
                 updateRankingTable();
                 document.getElementById('winnerSelection').style.display = 'none';
-                generateCards();
+                generateGame();
                 showCardLinks();
                 saveGameState();
             }
@@ -667,7 +716,8 @@
 
                 const playerStats = players.map(player => {
                     const wins = winners.filter(w => w.name === player.name).length;
-                    const chipsWon = winners.filter(w => w.name === player.name).reduce((sum, w) => sum + w.playerCount, 0);
+                    const chipsWon = winners.filter(w => w.name === player.name)
+                        .reduce((sum, w) => sum + w.playerCount, 0);
                     return { name: player.name, wins, chipsWon };
                 });
 
@@ -735,7 +785,7 @@
                             }
                         }
                     }
-                }, 1000); // Atualiza a cada segundo
+                }, 1000);
             }
 
             function initializeGame() {
@@ -743,7 +793,6 @@
                 const loadedGameCode = urlParams.get('game');
 
                 if (loadedGameCode) {
-                    // Jogador entrando em um jogo existente
                     gameCode = loadedGameCode;
                     isAdmin = localStorage.getItem(`bingoAdmin_${gameCode}`) === 'true';
                     document.getElementById('adminSetup').style.display = 'none';
@@ -751,7 +800,6 @@
                     loadAndDisplayGameState();
                     startGameStatePolling();
                 } else {
-                    // Novo jogo sendo criado
                     gameCode = generateGameCode();
                     localStorage.setItem(`bingoAdmin_${gameCode}`, 'true');
                     isAdmin = true;
@@ -770,11 +818,9 @@
                     winners = gameState.winners;
                     gameStarted = gameState.gameStarted;
 
-                    // Atualiza o nome do bingo na interface
                     const bingoNameDisplay = document.getElementById('bingoNameDisplay');
                     bingoNameDisplay.textContent = gameState.bingoName;
 
-                    // Atualiza a lista de jogadores e o ranking
                     updatePlayerList();
                     updateRankingTable();
 
@@ -786,10 +832,8 @@
                 }
             }
 
-
             initializeGame();
         });
     </script>
 </body>
 </html>
-
