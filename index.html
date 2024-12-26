@@ -319,6 +319,21 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const socket = io();
+            
+            socket.on('connect', () => {
+                console.log('Connected to server');
+            });
+
+            socket.on('connect_error', (error) => {
+                console.error('Connection error:', error);
+                errorMessage.textContent = 'Erro de conexão com o servidor. Por favor, recarregue a página.';
+            });
+
+            socket.on('error', (error) => {
+                console.error('Server error:', error);
+                errorMessage.textContent = error.message;
+            });
+
             const form = document.getElementById('bingoForm');
             const cardsContainer = document.getElementById('cardsContainer');
             const errorMessage = document.getElementById('errorMessage');
@@ -424,8 +439,18 @@
                 gameCode = generateGameCode();
                 socket.emit('createGame', { gameCode, adminName, bingoName });
                 isAdmin = true;
+                
+                // Atualiza a interface
                 document.getElementById('adminSetup').style.display = 'none';
                 document.getElementById('shareLink').style.display = 'block';
+                
+                // Cria e mostra o link de compartilhamento
+                const gameUrl = `${window.location.origin}?game=${gameCode}`;
+                shareLinkDiv.innerHTML = `
+                    <p>Compartilhe este link com os jogadores:</p>
+                    <input type="text" value="${gameUrl}" readonly style="width: 100%; margin-bottom: 10px;">
+                    <button onclick="navigator.clipboard.writeText('${gameUrl}')">Copiar Link</button>
+                `;
             });
 
             function joinGame() {
@@ -680,14 +705,21 @@
                 const loadedGameCode = urlParams.get('game');
 
                 if (loadedGameCode) {
+                    console.log('Joining existing game:', loadedGameCode);
                     gameCode = loadedGameCode;
-                    socket.emit('joinGame', { gameCode, playerName: '' });
+                    isAdmin = false;
                     document.getElementById('adminSetup').style.display = 'none';
                     document.getElementById('playerSetup').style.display = 'block';
                 } else {
+                    console.log('Starting new game setup');
+                    isAdmin = true;
                     document.getElementById('adminSetup').style.display = 'block';
                     document.getElementById('playerSetup').style.display = 'none';
                 }
+                
+                // Garante que o formulário principal está visível
+                document.getElementById('gameConfig').style.display = 'block';
+                document.getElementById('gamePlay').style.display = 'none';
             }
 
             initializeGame();
