@@ -338,7 +338,6 @@
             let openCardIndex = -1;
             let gameStarted = false;
             let gameState = null;
-            let pollInterval = null;
 
             function generateGameCode() {
                 return Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -354,11 +353,6 @@
                     gameStarted
                 }});
             }
-
-            function loadGameState() {
-                //This function is no longer needed with socket.io
-            }
-
 
             function updateUIForRole() {
                 const adminElements = document.querySelectorAll('.admin-only');
@@ -377,8 +371,7 @@
             function createPlayerElement(player, index) {
                 const playerDiv = document.createElement('div');
                 playerDiv.className = 'player-item';
-                playerDiv.innerHTML = `
-                    <span class="player-name">${player.name}</span>
+                playerDiv.innerHTML = `<span class="player-name">${player.name}</span>
                     <span class="player-status">${player.status}</span>
                     ${isAdmin ? `
                         <div class="player-actions">
@@ -443,6 +436,8 @@
                 }
             }
 
+            document.getElementById('joinGame').addEventListener('click', joinGame);
+
             socket.on('gameState', (gameState) => {
                 players = gameState.players;
                 generatedCards = gameState.generatedCards;
@@ -468,7 +463,6 @@
                     createGameButton.click();
                 }
             });
-
 
             function generateColumnNumbers(min, max, count) {
                 const numbers = [];
@@ -679,10 +673,6 @@
 
             function updateStartGameButtonVisibility() {
                 startGameButton.style.display = (players.length > 1) ? 'block' : 'none';
-            }
-
-            function startGameStatePolling() {
-                //This function is no longer needed with socket.io
             }
 
             function initializeGame() {

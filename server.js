@@ -7,7 +7,8 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-app.use(express.static(path.join(__dirname, 'public')));
+// Serve os arquivos estáticos da pasta atual
+app.use(express.static(__dirname));
 
 const games = new Map();
 
