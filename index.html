@@ -96,6 +96,15 @@
             font-size: 0.9em;
             color: #666;
         }
+        .player-actions {
+            display: flex;
+            gap: 5px;
+        }
+        .player-actions button {
+            padding: 5px 10px;
+            font-size: 12px;
+            width: auto;
+        }
         #cardLinks {
             display: flex;
             flex-wrap: wrap;
@@ -196,18 +205,18 @@
             font-size: 14px;
             flex: 1 0 40%;
         }
-        #winnersTable {
+        #winnersTable, #rankingTable {
             width: 100%;
             margin: 20px auto;
             border-collapse: collapse;
             font-size: 14px;
         }
-        #winnersTable th, #winnersTable td {
+        #winnersTable th, #winnersTable td, #rankingTable th, #rankingTable td {
             border: 1px solid #ddd;
             padding: 8px;
             text-align: left;
         }
-        #winnersTable th {
+        #winnersTable th, #rankingTable th {
             background-color: #f2f2f2;
         }
         #gameContainer {
@@ -217,6 +226,9 @@
             margin-top: 20px;
             width: 100%;
             max-width: 300px;
+        }
+        .inactive {
+            opacity: 0.5;
         }
         @media (max-width: 600px) {
             body {
@@ -264,15 +276,17 @@
         <button id="newGameButton" style="display: none;">Novo Jogo</button>
         <div id="errorMessage" class="error-message"></div>
         <div id="shareLink" style="margin-top: 20px;"></div>
-        <table id="winnersTable">
+        <h2>Ranking</h2>
+        <table id="rankingTable">
             <thead>
                 <tr>
+                    <th>Posição</th>
                     <th>Jogador</th>
                     <th>Vitórias</th>
                     <th>Fichas Ganhas</th>
                 </tr>
             </thead>
-            <tbody id="winnersTableBody"></tbody>
+            <tbody id="rankingTableBody"></tbody>
         </table>
     </div>
     <div id="gamePlay" style="display: none;">
@@ -344,7 +358,7 @@
                         gameStarted = gameState.gameStarted;
                         document.getElementById('bingoName').value = gameState.bingoName;
                         updatePlayerList();
-                        updateWinnersTable();
+                        updateRankingTable();
                         if (gameStarted) {
                             document.getElementById('gameConfig').style.display = 'none';
                             document.getElementById('gamePlay').style.display = 'block';
@@ -371,20 +385,44 @@
                 document.getElementById('backToConfig').style.display = isAdmin ? 'block' : 'none';
             }
 
-            function createPlayerElement(player) {
+            function createPlayerElement(player, index) {
                 const playerDiv = document.createElement('div');
                 playerDiv.className = 'player-item';
                 playerDiv.innerHTML = `
                     <span class="player-name">${player.name}</span>
                     <span class="player-status">${player.status}</span>
+                    ${isAdmin ? `
+                        <div class="player-actions">
+                            <button type="button" class="toggle-btn">${player.active ? 'Desativar' : 'Ativar'}</button>
+                            <button type="button" class="remove-btn">Remover</button>
+                        </div>
+                    ` : ''}
                 `;
+
+                if (isAdmin) {
+                    playerDiv.querySelector('.toggle-btn').addEventListener('click', () => {
+                        players[index].active = !players[index].active;
+                        updatePlayerList();
+                        saveGameState();
+                    });
+
+                    playerDiv.querySelector('.remove-btn').addEventListener('click', () => {
+                        players.splice(index, 1);
+                        updatePlayerList();
+                        saveGameState();
+                    });
+                }
+
                 return playerDiv;
             }
 
             function updatePlayerList() {
                 playerList.innerHTML = '';
-                players.forEach((player) => {
-                    const playerElement = createPlayerElement(player);
+                players.forEach((player, index) => {
+                    const playerElement = createPlayerElement(player, index);
+                    if (!player.active) {
+                        playerElement.classList.add('inactive');
+                    }
                     playerList.appendChild(playerElement);
                 });
                 updateUIForRole();
@@ -393,7 +431,7 @@
             joinGameButton.addEventListener('click', () => {
                 const playerName = playerNameInput.value.trim();
                 if (playerName) {
-                    const newPlayer = { name: playerName, status: 'Aguardando início' };
+                    const newPlayer = { name: playerName, active: true, status: 'Aguardando início' };
                     players.push(newPlayer);
                     updatePlayerList();
                     playerNameInput.value = '';
@@ -496,32 +534,38 @@
                     return;
                 }
 
-                generatedCards = players.map(() => generateCard());
+                generatedCards = players.filter(p => p.active).map(() => generateCard());
 
                 cardLinks.innerHTML = '';
                 players.forEach((player, index) => {
-                    const link = document.createElement('a');
-                    link.href = '#';
-                    link.textContent = player.name;
-                    link.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        showPlayerCard(index);
-                    });
-                    cardLinks.appendChild(link);
+                    if (player.active) {
+                        const link = document.createElement('a');
+                        link.href = '#';
+                        link.textContent = player.name;
+                        link.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            showPlayerCard(index);
+                        });
+                        cardLinks.appendChild(link);
+                    }
                 });
 
                 errorMessage.textContent = '';
                 document.getElementById('gameConfig').style.display = 'none';
                 document.getElementById('gamePlay').style.display = 'block';
                 showCardLinks();
-                updateWinnersTable();
+                updateRankingTable();
                 gameStarted = true;
                 saveGameState();
             }
 
             startGameButton.addEventListener('click', (e) => {
                 e.preventDefault();
-                generateCards();
+                if (players.filter(p => p.active).length > 0) {
+                    generateCards();
+                } else {
+                    errorMessage.textContent = 'É necessário ter pelo menos um jogador ativo para iniciar o jogo.';
+                }
             });
 
             function showCardLinks() {
@@ -530,14 +574,16 @@
                 document.getElementById('restartButton').style.display = isAdmin ? 'block' : 'none';
                 document.getElementById('backToConfig').style.display = isAdmin ? 'block' : 'none';
 
-                const winnersTable = document.getElementById('winnersTable').cloneNode(true);
-                winnersTable.style.marginTop = '20px';
-                cardLinks.appendChild(winnersTable);
+                const rankingTable = document.getElementById('rankingTable').cloneNode(true);
+                rankingTable.style.marginTop = '20px';
+                cardLinks.appendChild(rankingTable);
 
                 players.forEach((player, index) => {
-                    const cardElement = displayCard(generatedCards[index], player.name, index, players.length);
-                    cardElement.style.display = 'none';
-                    cardsContainer.appendChild(cardElement);
+                    if (player.active) {
+                        const cardElement = displayCard(generatedCards[index], player.name, index, players.filter(p => p.active).length);
+                        cardElement.style.display = 'none';
+                        cardsContainer.appendChild(cardElement);
+                    }
                 });
             }
 
@@ -545,59 +591,44 @@
                 document.getElementById('winnerSelection').style.display = 'block';
                 document.getElementById('winnerButtons').innerHTML = '';
                 players.forEach((player, index) => {
-                    const button = document.createElement('button');
-                    button.textContent = player.name;
-                    button.addEventListener('click', () => selectWinner(player.name));
-                    document.getElementById('winnerButtons').appendChild(button);
+                    if (player.active) {
+                        const button = document.createElement('button');
+                        button.textContent = player.name;
+                        button.addEventListener('click', () => selectWinner(player.name));
+                        document.getElementById('winnerButtons').appendChild(button);
+                    }
                 });
                 cardsContainer.innerHTML = '';
             });
 
             function selectWinner(winnerName) {
-                const activePlayerCount = players.length;
+                const activePlayerCount = players.filter(p => p.active).length;
                 winners.push({ round: gameCount, name: winnerName, playerCount: activePlayerCount });
-                updateWinnersTable();
+                updateRankingTable();
                 document.getElementById('winnerSelection').style.display = 'none';
                 generateCards();
                 showCardLinks();
                 saveGameState();
             }
 
-            function updateWinnersTable() {
-                const tableBody = document.getElementById('winnersTableBody');
-                const playerTableBody = document.querySelector('#gameContainer #winnersTable tbody');
+            function updateRankingTable() {
+                const tableBody = document.getElementById('rankingTableBody');
                 tableBody.innerHTML = '';
-                if (playerTableBody) playerTableBody.innerHTML = '';
 
-                const playerWins = {};
-                const playerChips = {};
-                players.forEach(player => {
-                    playerWins[player.name] = 0;
-                    playerChips[player.name] = 0;
+                const playerStats = players.map(player => {
+                    const wins = winners.filter(w => w.name === player.name).length;
+                    const chipsWon = winners.filter(w => w.name === player.name).reduce((sum, w) => sum + w.playerCount, 0);
+                    return { name: player.name, wins, chipsWon };
                 });
 
-                winners.forEach(winner => {
-                    if (playerWins.hasOwnProperty(winner.name)) {
-                        playerWins[winner.name]++;
-                        playerChips[winner.name] += winner.playerCount;
-                    }
-                });
+                playerStats.sort((a, b) => b.wins - a.wins || b.chipsWon - a.chipsWon);
 
-                Object.entries(playerWins).forEach(([playerName, wins]) => {
+                playerStats.forEach((stat, index) => {
                     const row = tableBody.insertRow();
-                    const cellName = row.insertCell(0);
-                    const cellWins = row.insertCell(1);
-                    const cellChips = row.insertCell(2);
-                    cellName.textContent = playerName;
-                    cellWins.textContent = wins;
-                    cellChips.textContent = playerChips[playerName];
-
-                    if (playerTableBody) {
-                        const playerRow = playerTableBody.insertRow();
-                        playerRow.insertCell(0).textContent = playerName;
-                        playerRow.insertCell(1).textContent = wins;
-                        playerRow.insertCell(2).textContent = playerChips[playerName];
-                    }
+                    row.insertCell(0).textContent = index + 1;
+                    row.insertCell(1).textContent = stat.name;
+                    row.insertCell(2).textContent = stat.wins;
+                    row.insertCell(3).textContent = stat.chipsWon;
                 });
             }
 
@@ -614,7 +645,7 @@
                 winners = [];
                 gameStarted = false;
                 updatePlayerList();
-                updateWinnersTable();
+                updateRankingTable();
                 document.getElementById('bingoName').value = '';
                 errorMessage.textContent = '';
                 saveGameState();
