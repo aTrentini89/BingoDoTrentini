@@ -356,6 +356,7 @@
                         winners = gameState.winners;
                         gameStarted = gameState.gameStarted;
                         document.getElementById('bingoName').value = gameState.bingoName;
+                        document.getElementById('bingoName').disabled = true;
                         updatePlayerList();
                         updateRankingTable();
                         if (gameStarted) {
@@ -363,7 +364,7 @@
                             document.getElementById('gamePlay').style.display = 'block';
                             showCardLinks();
                         } else {
-                            showAdminView();
+                            showPlayerView();
                         }
                     }
                     isAdmin = localStorage.getItem(`bingoAdmin_${gameCode}`) === 'true';
@@ -381,7 +382,7 @@
                 document.getElementById('backToConfig').style.display = isAdmin ? 'block' : 'none';
 
                 if (!isAdmin && !gameStarted) {
-                    showAdminView();
+                    showPlayerView();
                 }
             }
 
@@ -447,12 +448,15 @@
 
             function joinGame() {
                 const playerName = playerNameInput.value.trim();
-                if (playerName) {
+                if (playerName && !players.some(p => p.name === playerName)) {
                     const newPlayer = { name: playerName, active: true, status: 'Jogador' };
                     players.push(newPlayer);
                     updatePlayerList();
                     updateRankingTable();
                     saveGameState();
+                    document.querySelector('.player-entry').style.display = 'none';
+                } else if (players.some(p => p.name === playerName)) {
+                    errorMessage.textContent = 'Este nome já está em uso. Por favor, escolha outro.';
                 }
             }
 
@@ -654,6 +658,17 @@
                 cardsContainer.innerHTML = '';
             });
 
+            function showPlayerView() {
+                document.querySelector('.player-entry').style.display = 'block';
+                document.querySelector('.player-entry label').textContent = 'Seu Nome:';
+                createGameButton.textContent = 'Entrar no Jogo';
+                createGameButton.removeEventListener('click', createGameButton.clickHandler);
+                createGameButton.clickHandler = joinGame;
+                createGameButton.addEventListener('click', createGameButton.clickHandler);
+                shareLinkDiv.style.display = 'none';
+                document.getElementById('rankingTable').style.display = 'block';
+            }
+
             function showAdminView() {
                 document.querySelector('.player-entry').style.display = 'none';
                 shareLinkDiv.style.display = 'block';
@@ -674,8 +689,30 @@
                 startGameButton.style.display = (players.length > 1) ? 'block' : 'none';
             }
 
+            function startGameStatePolling() {
+                setInterval(() => {
+                    if (!isAdmin) {
+                        const savedState = localStorage.getItem(`bingoGameState_${gameCode}`);
+                        if (savedState) {
+                            const gameState = JSON.parse(savedState);
+                            if (JSON.stringify(gameState.players) !== JSON.stringify(players)) {
+                                players = gameState.players;
+                                updatePlayerList();
+                                updateRankingTable();
+                            }
+                            if (gameState.gameStarted && !gameStarted) {
+                                gameStarted = true;
+                                document.getElementById('gameConfig').style.display = 'none';
+                                document.getElementById('gamePlay').style.display = 'block';
+                                showCardLinks();
+                            }
+                        }
+                    }
+                }, 5000); // Atualiza a cada 5 segundos
+            }
 
             loadGameState();
+            startGameStatePolling();
         });
     </script>
 </body>
